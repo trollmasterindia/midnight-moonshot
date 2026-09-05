@@ -848,7 +848,7 @@ interface DiagnosticState {
   approvedOption: any | null;
   clientResult: string;
   autoLogResult: any | null;
-  status: 'idle' | 'analyzing' | 'awaiting_pt_approval' | 'awaiting_client_result' | 'auto_logging' | 'complete';
+  status: 'idle' | 'needs_pt_analysis' | 'analyzing' | 'awaiting_pt_approval' | 'awaiting_client_result' | 'client_result_submitted' | 'auto_logging' | 'complete';
 }
 
 function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExercises, exerciseDictionary }: { dbConn: DbConnection | null, rooms: RoomData[], sessionHistory: SessionHistoryData[], blueprints: BlueprintData[], blueprintExercises: BlueprintExerciseData[], exerciseDictionary: ExerciseDictionaryData[] }) {
@@ -862,14 +862,15 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
   const [isAIPlannerOpen, setIsAIPlannerOpen] = useState(false);
   const [editingBlueprint, setEditingBlueprint] = useState<BlueprintData | null>(null);
   
-  // Diagnostic AI state
+  // Diagnostic AI state synced over SpaceTimeDB via blueprint table
+  const diagBlueprint = blueprints.find(b => b.roomId === roomState?.roomId && b.name === '__DIAGNOSTIC_STATE__');
   const [diagState, setDiagState] = useState<DiagnosticState>({
     issueText: '', loggedBy: 'PT', analysis: null, approvedOption: null,
     clientResult: '', autoLogResult: null, status: 'idle'
   });
   const [ptIssueInput, setPtIssueInput] = useState('');
 
-  const activeBlueprint = blueprints.find(b => b.roomId === roomState?.roomId && b.isActiveDayPlan);
+  const activeBlueprint = blueprints.find(b => b.roomId === roomState?.roomId && b.isActiveDayPlan && b.name !== '__DIAGNOSTIC_STATE__');
   const activeBlueprintExercises = activeBlueprint ? blueprintExercises.filter(e => e.blueprintId === activeBlueprint.blueprintId).sort((a,b) => a.orderIndex - b.orderIndex) : [];
   
   // executionLog maps exercise id to array of set performances
@@ -886,8 +887,6 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
 
   const handleSetActivePlan = (blueprint: BlueprintData) => {
     if (!dbConn) return;
-    // We could unset others, but the saveBlueprint reducer will just update this one.
-    // In a real app we'd unset the others first. For the POC, we just update this one to true.
     const exs = blueprintExercises.filter(e => e.blueprintId === blueprint.blueprintId);
     dbConn.reducers.saveBlueprint({
       blueprintId: blueprint.blueprintId,
@@ -899,33 +898,44 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
     });
   };
 
-  // Persist diag state to sessionStorage so ClientView can read it
+  // Broadcast diag state to SpaceTimeDB so external PCs receive it in real-time
+  const broadcastDiagState = (next: DiagnosticState) => {
+    setDiagState(next);
+    try { sessionStorage.setItem(DIAG_STATE_KEY + '_' + roomId, JSON.stringify(next)); } catch {}
+    if (dbConn && roomState) {
+      dbConn.reducers.saveBlueprint({
+        blueprintId: 'diag-' + roomState.roomId,
+        roomId: roomState.roomId,
+        name: '__DIAGNOSTIC_STATE__',
+        targetGoal: JSON.stringify(next),
+        isActiveDayPlan: false,
+        exercisesJson: '[]'
+      });
+    }
+  };
+
   const updateDiagState = (partial: Partial<DiagnosticState>) => {
     setDiagState(prev => {
       const next = { ...prev, ...partial };
-      try { sessionStorage.setItem(DIAG_STATE_KEY + '_' + roomId, JSON.stringify(next)); } catch {}
+      broadcastDiagState(next);
       return next;
     });
   };
 
-  // Read client result from sessionStorage (polled)
-  const diagStateRef = useRef(diagState);
-  diagStateRef.current = diagState;
+  // Sync diagnostic state from SpaceTimeDB blueprint broadcast (external PC support)
+  const lastHandledIssueRef = useRef<string>('');
   useEffect(() => {
-    if (diagState.status !== 'awaiting_client_result') return;
-    const interval = setInterval(() => {
-      try {
-        const raw = sessionStorage.getItem(DIAG_STATE_KEY + '_' + roomId);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed.clientResult && parsed.clientResult !== diagStateRef.current.clientResult) {
-            setDiagState(parsed);
-          }
-        }
-      } catch {}
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [diagState.status, roomId]);
+    if (!diagBlueprint?.targetGoal) return;
+    try {
+      const remote = JSON.parse(diagBlueprint.targetGoal) as DiagnosticState;
+      if (remote.status === 'needs_pt_analysis' && lastHandledIssueRef.current !== remote.issueText) {
+        lastHandledIssueRef.current = remote.issueText;
+        handleLogIssue(remote.issueText, 'CLIENT');
+      } else if (remote.status === 'client_result_submitted' || (remote.clientResult && remote.clientResult !== diagState.clientResult)) {
+        setDiagState(prev => ({ ...prev, clientResult: remote.clientResult, status: 'awaiting_client_result' }));
+      }
+    } catch {}
+  }, [diagBlueprint?.targetGoal]);
 
   const handleLogIssue = async (issueText: string, loggedBy: 'PT' | 'CLIENT') => {
     if (!issueText.trim()) return;
@@ -1155,14 +1165,14 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
                 </div>
 
                 <div className="grid gap-4">
-                  {blueprints.filter(b => b.roomId === roomState.roomId).length === 0 ? (
+                  {blueprints.filter(b => b.roomId === roomState.roomId && b.name !== '__DIAGNOSTIC_STATE__').length === 0 ? (
                     <div className="text-center py-10 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
                       <ClipboardList className="w-8 h-8 text-slate-600 mx-auto mb-2" />
                       <p className="text-slate-400 text-sm">No blueprints saved for this client yet.</p>
                       <p className="text-xs text-slate-500 mt-1">Use the AI Planner to generate one.</p>
                     </div>
                   ) : (
-                    blueprints.filter(b => b.roomId === roomState.roomId).map(bp => {
+                    blueprints.filter(b => b.roomId === roomState.roomId && b.name !== '__DIAGNOSTIC_STATE__').map(bp => {
                       const exCount = blueprintExercises.filter(e => e.blueprintId === bp.blueprintId).length;
                       return (
                         <div key={bp.blueprintId} className="bg-slate-800/60 rounded-xl p-4 border border-slate-700 flex justify-between items-center group">
@@ -1660,7 +1670,7 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
 // -------------------------------------------------------------
 // Client Exercise View Sub-Component (for CONNECTED state)
 // -------------------------------------------------------------
-function ClientExerciseView({ roomState }: { roomState: RoomData }) {
+function ClientExerciseView({ roomState, dbConn, blueprints }: { roomState: RoomData, dbConn: DbConnection | null, blueprints: BlueprintData[] }) {
   const squatExercise = {
     name: 'Bodyweight Squat',
     videoUrl: 'https://www.youtube.com/embed/dW3zj79xfrc',
@@ -1678,41 +1688,46 @@ function ClientExerciseView({ roomState }: { roomState: RoomData }) {
   const [submittedIssue, setSubmittedIssue] = useState('');
   const [clientResult, setClientResult] = useState('');
   const [resultSubmitted, setResultSubmitted] = useState(false);
+
+  // Sync diagnostic state from SpaceTimeDB blueprint broadcast (external PC support)
+  const diagBlueprint = blueprints.find(b => b.roomId === roomState.roomId && b.name === '__DIAGNOSTIC_STATE__');
   const [clientDiagState, setClientDiagState] = useState<DiagnosticState | null>(null);
 
-  // Poll sessionStorage for PT-approved instruction
   useEffect(() => {
-    const poll = setInterval(() => {
+    if (diagBlueprint?.targetGoal) {
       try {
-        const raw = sessionStorage.getItem(DIAG_STATE_KEY + '_' + roomState.roomId);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          setClientDiagState(parsed);
-        }
+        const parsed = JSON.parse(diagBlueprint.targetGoal) as DiagnosticState;
+        setClientDiagState(parsed);
+        if (parsed.issueText) setSubmittedIssue(parsed.issueText);
       } catch {}
-    }, 1500);
-    return () => clearInterval(poll);
-  }, [roomState.roomId]);
+    }
+  }, [diagBlueprint?.targetGoal]);
+
+  const syncDiagState = (updated: Partial<DiagnosticState>) => {
+    const next = { ...(clientDiagState || {}), ...updated } as DiagnosticState;
+    setClientDiagState(next);
+    try { sessionStorage.setItem(DIAG_STATE_KEY + '_' + roomState.roomId, JSON.stringify(next)); } catch {}
+    if (dbConn) {
+      dbConn.reducers.saveBlueprint({
+        blueprintId: 'diag-' + roomState.roomId,
+        roomId: roomState.roomId,
+        name: '__DIAGNOSTIC_STATE__',
+        targetGoal: JSON.stringify(next),
+        isActiveDayPlan: false,
+        exercisesJson: '[]'
+      });
+    }
+  };
 
   const handleClientLogIssue = (text: string) => {
     setSubmittedIssue(text);
-    try {
-      const existing = sessionStorage.getItem(DIAG_STATE_KEY + '_' + roomState.roomId);
-      const state = existing ? JSON.parse(existing) : {};
-      const updated = { ...state, issueText: text, loggedBy: 'CLIENT', status: 'needs_pt_analysis' };
-      sessionStorage.setItem(DIAG_STATE_KEY + '_' + roomState.roomId, JSON.stringify(updated));
-    } catch {}
+    syncDiagState({ issueText: text, loggedBy: 'CLIENT', status: 'needs_pt_analysis', approvedOption: null, clientResult: '', autoLogResult: null });
   };
 
   const handleClientSubmitResult = () => {
     if (!clientResult.trim()) return;
     setResultSubmitted(true);
-    try {
-      const existing = sessionStorage.getItem(DIAG_STATE_KEY + '_' + roomState.roomId);
-      const state = existing ? JSON.parse(existing) : {};
-      const updated = { ...state, clientResult, status: 'awaiting_client_result' };
-      sessionStorage.setItem(DIAG_STATE_KEY + '_' + roomState.roomId, JSON.stringify(updated));
-    } catch {}
+    syncDiagState({ clientResult, status: 'client_result_submitted' });
   };
 
   return (
@@ -1849,7 +1864,7 @@ function ClientExerciseView({ roomState }: { roomState: RoomData }) {
 // -------------------------------------------------------------
 // Client Mobile View Component
 // -------------------------------------------------------------
-function ClientView({ isConnected, dbConn, rooms, sessionHistory }: { isConnected: boolean, dbConn: DbConnection | null, rooms: RoomData[], sessionHistory: SessionHistoryData[] }) {
+function ClientView({ isConnected, dbConn, rooms, sessionHistory, blueprints }: { isConnected: boolean, dbConn: DbConnection | null, rooms: RoomData[], sessionHistory: SessionHistoryData[], blueprints: BlueprintData[] }) {
   const { roomToken } = useParams();
   const [inputName, setInputName] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'session' | 'homework'>('session');
@@ -2003,7 +2018,7 @@ function ClientView({ isConnected, dbConn, rooms, sessionHistory }: { isConnecte
 
             {/* State 3: Live Session Active - Rich Exercise View */}
             {roomState.clientStatus === 'CONNECTED' && (
-              <ClientExerciseView roomState={roomState} />
+              <ClientExerciseView roomState={roomState} dbConn={dbConn} blueprints={blueprints} />
             )}
           </div>
         )}
@@ -2178,7 +2193,7 @@ export function App() {
         <Route path="/" element={<PTDashboard rooms={rooms} />} />
         <Route path="/pt" element={<PTDashboard rooms={rooms} />} />
         <Route path="/pt/room/:roomId" element={<PTRoomView dbConn={dbConn} rooms={rooms} sessionHistory={sessionHistory} blueprints={blueprints} blueprintExercises={blueprintExercises} exerciseDictionary={exerciseDictionary} />} />
-        <Route path="/client/:roomToken" element={<ClientView isConnected={isConnected} dbConn={dbConn} rooms={rooms} sessionHistory={sessionHistory} />} />
+        <Route path="/client/:roomToken" element={<ClientView isConnected={isConnected} dbConn={dbConn} rooms={rooms} sessionHistory={sessionHistory} blueprints={blueprints} />} />
         <Route path="*" element={<PTDashboard rooms={rooms} />} />
       </Routes>
     </div>
