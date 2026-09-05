@@ -122,12 +122,42 @@ function PTDashboard({ rooms }: { rooms: RoomData[] }) {
                      'INACTIVE'}
                   </span>
                 </div>
-                <div className="text-sm text-slate-400 space-y-1">
+                <div className="text-sm text-slate-400 space-y-1.5">
                   <p>Expected Client: <span className="text-slate-200 font-medium">{room.expectedClientName}</span></p>
                   {(room.clientStatus === 'WAITING_APPROVAL' || room.clientStatus === 'DENIED') && room.submittedClientName && (
                     <p>Submitted Name: <span className="text-amber-300 font-medium">{room.submittedClientName}</span></p>
                   )}
-                  <p>Room Token: <span className="font-mono text-xs">{room.roomToken}</span></p>
+
+                  {/* Inline Client Link with minimal Copy CTA */}
+                  <div className="flex items-center justify-between bg-slate-950/80 px-2.5 py-1.5 rounded-lg border border-slate-800/90 mt-2">
+                    <div className="truncate mr-2">
+                      <span className="text-[10px] text-slate-400 font-semibold block uppercase tracking-wider">Client Link</span>
+                      <span className="font-mono text-xs text-indigo-300 truncate block">
+                        {`${window.location.origin}/client/${room.roomToken}`}
+                      </span>
+                    </div>
+                    <button
+                      onClick={(e) => handleCopyClientLink(room.roomToken, e)}
+                      title="Copy Link to Clipboard"
+                      className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all flex items-center space-x-1 shrink-0 ${
+                        copiedToken === room.roomToken
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                          : 'bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30'
+                      }`}
+                    >
+                      {copiedToken === room.roomToken ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-400" />
+                          <span>Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Subtext Area: Last session date & time and notes */}
@@ -148,29 +178,6 @@ function PTDashboard({ rooms }: { rooms: RoomData[] }) {
                     No previous sessions logged
                   </div>
                 )}
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={(e) => handleCopyClientLink(room.roomToken, e)}
-                  className={`w-full text-xs font-semibold py-2 px-3 rounded-lg border transition-all flex items-center justify-center space-x-1.5 ${
-                    copiedToken === room.roomToken
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                      : 'bg-slate-800 hover:bg-slate-700 text-indigo-300 border-slate-700'
-                  }`}
-                >
-                  {copiedToken === room.roomToken ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Link Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Copy Client Link (WhatsApp)</span>
-                    </>
-                  )}
-                </button>
               </div>
             </div>
           ))}
