@@ -35,9 +35,9 @@
 ## 2. Phase Details
 
 ### Phase 1: MVP Core (1-on-1 Focus)
-- Built for the initial Mentors Checkpoint.
+- Built for the initial Mentors Checkpoint (17:00 deadline).
 - 1 PT ↔ 1 Client private room.
-- Focuses on perfect execution of the Squat diagnostic loop and WikiGem recommendation engine.
+- Fully powered by **SpaceTimeDB WebSockets** for real-time bi-directional synchronization (PT assigns exercises/3D overlays, Client logs pain/engagement, SpaceTimeDB runs WikiGem logic, PT pushes prescriptions).
 
 ### Phase 2: Multi-Client Dashboard Expansion (1 PT ↔ 10 Clients)
 - **Scalable Subscription:** SpaceTimeDB allows the PT client to subscribe to `SELECT * FROM Room WHERE pt_name = 'Dr_Smith'`, streaming updates for up to 10 rooms simultaneously without performance degradation.

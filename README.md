@@ -61,8 +61,8 @@ Traditional tele-rehab consultations suffer from:
                        └───────────────────────────────────────┘
 ```
 
-- **Phase 1 (MVP - 1-on-1 Focus):** Perfect execution of the Squat diagnostic loop and WikiGem prescription pipeline.
-- **Phase 2 (PT Dashboard Matrix - 1 PT ↔ 10 Clients):** SpaceTimeDB WebSocket query subscription (`SELECT * FROM Room WHERE pt_name = ...`) streaming real-time alerts across 10 active patient rooms.
+- **Phase 1 (MVP - 1-on-1 Focus):** Powered by **SpaceTimeDB** real-time WebSockets for sub-millisecond state coordination between 1 PT and 1 Client (exercise selection, 3D anatomical overlays, muscle/pain feedback, and WikiGem prescription push).
+- **Phase 2 (PT Dashboard Matrix - 1 PT ↔ 10 Clients):** Leverages SpaceTimeDB WebSocket query subscriptions (`SELECT * FROM Room WHERE pt_name = ...`) streaming real-time alerts across up to 10 simultaneous patient rooms into a 2x5 PT matrix grid.
 
 ---
 
