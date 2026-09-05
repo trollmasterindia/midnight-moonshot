@@ -38,9 +38,12 @@ Instead of verbally explaining form tweaks over video calls, the PT shares a pri
   - Last Session Summary & Prescriptions.
 - **Session Initiation:** PT starts room `physiosync.app/room/squat-diag-101` linked to Alex's profile.
 
-### Feature 1: Zero-Friction Room Entry
-- **PT Flow:** Generates and shares private room link (e.g., `physiosync.app/room/squat-diag-101`).
-- **Client Flow:** Opens URL, enters name (e.g., *"Alex"*), clicks **"Join Room"**. No passwords or registration required.
+### Feature 1: Personalized Link & PT Waiting Room Authorization
+- **Personalized Room Link:** PT generates a client-specific secret link (e.g. `physiosync.app/room/alex-squat-8f92a`).
+- **Client Entry Request:** Client opens their secret link, inputs their name (*"Alex"*), and submits.
+- **Waiting Room State:** Client enters a real-time waiting screen (*"Waiting for PT to approve entry..."*).
+- **PT Authorization Modal:** On the PT Supervisor View, a notification pops up showing the client's submitted name and token match.
+- **1-Click PT Approval:** PT clicks **"Approve Entry"**, triggering SpaceTimeDB to transition the client's state to `"CONNECTED"` and load the live room interface.
 
 ### Feature 2: Exercise Assignment & Video Demo
 - **Exercise Library:** 5 core movements (Squat, Deadlift, Lunge, Glute Bridge, Wall Sit).

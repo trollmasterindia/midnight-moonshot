@@ -20,9 +20,9 @@
 
 ### Backend & SpaceTimeDB
 - [ ] Initialize SpaceTimeDB module project (Rust/C#).
-- [ ] Implement `Room`, `MovementLog`, `Prescription`, `ClientRecord` tables.
+- [ ] Implement `Room` (with `room_token` & `client_status`), `MovementLog`, `Prescription`, `ClientRecord` tables.
 - [ ] Seed pre-existing patient record data (Alex: past injuries, clinical notes, baseline mobility).
-- [ ] Write reducers: `join_room`, `select_exercise`, `toggle_muscle_overlay`, `submit_movement_log`, `approve_prescription`, `swap_exercise`.
+- [ ] Write reducers: `request_room_entry`, `approve_client_entry`, `select_exercise`, `toggle_muscle_overlay`, `submit_movement_log`, `approve_prescription`, `swap_exercise`.
 - [ ] Deploy module to SpaceTimeDB Maincloud.
 
 ### WikiGem Diagnostic Engine
@@ -32,11 +32,12 @@
 ### Frontend Client & PT Views
 - [ ] Setup Vite + React + Tailwind CSS project skeleton.
 - [ ] Connect SpaceTimeDB WebSocket client SDK.
-- [ ] Build Zero-Friction Room Router (`/room/:roomId`).
-- [ ] Build PT Clinical History Sidebar (Displays pre-existing patient notes, past injuries, baseline mobility).
+- [ ] Build Personalized Link Router (`/room/:roomToken`).
+- [ ] Build Client Waiting Room UI (*"Waiting for PT Approval..."* state).
+- [ ] Build PT Supervisor View with Client Entry Request Modal & PT Clinical History Sidebar.
 - [ ] Build Exercise View (Video Demo / GIF loop).
 - [ ] Build Interactive SVG/3D Body Map canvas (Target Muscle Highlights & Pain Point Marker picker).
-- [ ] Build PT Supervisor View (Single Room focus & 2x5 Multi-Client Matrix Grid).
+- [ ] Build PT Multi-Client Matrix Grid (2x5 Grid for 10 clients).
 - [ ] Build Red Alert Badge notifications on PT dashboard.
 - [ ] Build Prescription Card Push modal.
 
@@ -44,8 +45,8 @@
 
 ## 🎬 Mentors & Final Demo Script
 
-1. **PT Session Start & History View:** PT opens app, selects patient profile *"Alex"*, and reviews pre-loaded clinical history (past lumbar sprain, dormant glute notes) in the PT sidebar. PT clicks **"Start Room"**.
-2. **Client Joins:** Client enters link on phone/laptop as "Alex" (no login).
+1. **PT Session Start & History View:** PT opens app, selects patient profile *"Alex"*, and reviews pre-loaded clinical history in the PT sidebar. PT clicks **"Start Room"**.
+2. **Personalized Link & PT Approval:** Client opens their secret link (`physiosync.app/room/alex-squat-8f92a`), enters name *"Alex"*, and enters Waiting Room. PT gets entry request modal -> Clicks **"Approve Entry"** -> Client screen unlocks into live room!
 3. **Exercise Selected:** PT sets exercise to **Squat**.
 4. **Muscle Target Displayed:** PT toggles **Highlight Target Muscles** -> Client sees Quads & Glutes highlighted.
 5. **Issue Logged:** Client taps Lumbar Spine (pain) and unchecks Glutes (inactivity).

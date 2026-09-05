@@ -99,7 +99,7 @@ cd midnight-moonshot
 
 ### Demo Script (Hackathon Demo Checklist)
 1. **PT Session Start & History View:** PT opens app, selects patient profile *"Alex"*, and reviews pre-loaded clinical history (past lumbar sprain, dormant glute notes) in the PT sidebar. PT clicks **"Start Room"**.
-2. **Zero-Friction Client Join:** Client opens shared link on phone/laptop -> Enters name *"Alex"* -> Joins instantly.
+2. **Personalized Link & PT Approval:** Client opens their secret link (`physiosync.app/room/alex-squat-8f92a`), enters name *"Alex"*, and enters Waiting Room. PT gets entry request modal -> Clicks **"Approve Entry"** -> Client screen unlocks into live room!
 3. **Exercise Assignment:** PT selects **Squat** -> Client screen shows live Squat Demo GIF.
 4. **Anatomical Overlay:** PT clicks **"Highlight Muscles"** -> Client body map animates Quads & Glutes.
 5. **Pain & Fault Logging:** Client logs *"Lower Back Pain"* + *"Glutes Not Felt"*.

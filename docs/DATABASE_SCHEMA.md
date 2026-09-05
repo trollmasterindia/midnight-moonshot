@@ -15,8 +15,10 @@ use spacetimedb::{spacetimedb, ReducerContext, Identity, Timestamp};
 pub struct Room {
     #[primarykey]
     pub room_id: String,
+    pub room_token: String,        // Unique personalized link token (e.g. "alex-squat-8f92a")
     pub pt_name: String,
     pub client_name: String,
+    pub client_status: String,      // "WAITING_APPROVAL", "CONNECTED", "DENIED"
     pub active_exercise: String,
     pub show_muscle_overlay: bool,
 }
@@ -64,20 +66,23 @@ pub struct ClientRecord {
 
 ## 2. Reducer Function Signatures
 
-1. `join_room(ctx: ReducerContext, room_id: String, user_name: String, role: String)`
-   - Creates or attaches user to a active room.
+1. `request_room_entry(ctx: ReducerContext, room_token: String, client_name: String)`
+   - Validates personalized token and sets client state to `"WAITING_APPROVAL"`.
 
-2. `select_exercise(ctx: ReducerContext, room_id: String, exercise_name: String)`
+2. `approve_client_entry(ctx: ReducerContext, room_id: String, approve: bool)`
+   - PT approves or denies client entry. Sets `client_status` to `"CONNECTED"` or `"DENIED"`.
+
+3. `select_exercise(ctx: ReducerContext, room_id: String, exercise_name: String)`
    - Updates `active_exercise` for all room subscribers.
 
-3. `toggle_muscle_overlay(ctx: ReducerContext, room_id: String, enabled: bool)`
+4. `toggle_muscle_overlay(ctx: ReducerContext, room_id: String, enabled: bool)`
    - Toggles 3D/SVG muscle highlighting overlay on client UI.
 
-4. `submit_movement_log(ctx: ReducerContext, room_id: String, felt_glutes: bool, felt_quads: bool, pain_x: f32, pain_y: f32, pain_type: String, issue_category: String)`
+5. `submit_movement_log(ctx: ReducerContext, room_id: String, felt_glutes: bool, felt_quads: bool, pain_x: f32, pain_y: f32, pain_type: String, issue_category: String)`
    - Inserts movement log and automatically triggers WikiGem suggestion logic.
 
-5. `approve_prescription(ctx: ReducerContext, prescription_id: u32)`
+6. `approve_prescription(ctx: ReducerContext, prescription_id: u32)`
    - Updates status to `"APPROVED_BY_PT"`, pushing prescription visual card to Client.
 
-6. `swap_exercise(ctx: ReducerContext, room_id: String, new_exercise_name: String)`
+7. `swap_exercise(ctx: ReducerContext, room_id: String, new_exercise_name: String)`
    - Swaps active exercise based on WikiGem alternative exercise recommendation.
