@@ -10,38 +10,78 @@ import {
 // -------------------------------------------------------
 // AI API Integration (Supports OpenAI gpt-4o & Gemini 1.5 Flash)
 // -------------------------------------------------------
+// -------------------------------------------------------
+// AI API Integration (Supports OpenAI gpt-4o & Gemini 3.6 Flash)
+// -------------------------------------------------------
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY || '';
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
-const GEMINI_MODEL = 'gemini-1.5-flash-latest';
+const GEMINI_MODEL = 'gemini-3.6-flash';
 const OPENAI_MODEL = 'gpt-4o';
 
-async function callLLMDiagnostic(issueText: string, clientName: string, clientGoal: string): Promise<{ potentialCause: string; confidence: string; ptOptions: { id: string; label: string; instruction: string; expectedOutcome: string }[]; outOfScope?: string }> {
-  const systemPrompt = `You are WikiGem, a biomechanics AI assistant for physiotherapists. You use a clinical decision tree to diagnose movement issues and prescribe diagnostic tests.
+async function callLLMDiagnostic(
+  issueText: string,
+  clientName: string,
+  clientGoal: string,
+  dbExercises?: ExerciseDictionaryData[]
+): Promise<{
+  potentialCause: string;
+  confidence: string;
+  dbExercisesReferenced?: string[];
+  ptOptions: { id: string; label: string; instruction: string; expectedOutcome: string }[];
+  outOfScope?: string;
+}> {
+  // Format verified exercises from SpaceTimeDB to ground the AI in our DB
+  const dbContext = (dbExercises && dbExercises.length > 0)
+    ? dbExercises.slice(0, 15).map(e => {
+        let faults = '';
+        try {
+          if (e.commonIssuesJson && e.commonIssuesJson !== '[]') {
+            faults = ' | Common faults: ' + JSON.parse(e.commonIssuesJson).map((c: any) => c.title).join(', ');
+          }
+        } catch {}
+        return `- ${e.name} (${e.category} / ${e.targetMuscle}): ${e.description}${faults}`;
+      }).join('\n')
+    : `- Bodyweight Squat (Rehab / Quads/Glutes): Basic functional movement | Common faults: Knees Collapsing Inward, Heels Lifting Off Floor, Lower Back Rounding\n- Ankle Dorsiflexion stretch (Mobility / Ankle): Improves squat depth and prevents excessive forward lean\n- Glute Bridge (Rehab / Glutes): Core and glute activation\n- Dead Bug (Core / Core): Anterior core control, prevents lumbar hyperextension\n- Bird Dog (Core / Core/Back): Spinal stability and back extensor endurance\n- 90/90 Hip Stretch (Mobility / Hips): Hip internal and external rotation`;
 
-Client: ${clientName}
-Client Goal: ${clientGoal}
-Client History: Needs monitoring for biomechanics during squat variations.
+  const systemPrompt = `You are WikiGem, an expert clinical biomechanics AI assistant for physical therapists.
+You diagnose movement faults and prescribe diagnostic screens and corrective exercises.
 
-Your diagnostic tree for squat issues:
-- CASE A (Glute Not Engaged / Quad Dominance): Prescribe foot 3-point contact cue, banded squats, glute bridge activation.
-- CASE B (Depth Limitation / Heel Lifting / Back Not Straight / Torso Collapse): Run Diagnostic Test 1 = Heel-Elevated Squat (if depth improves -> Ankle Mobility issue). Run Diagnostic Test 2 = Thomas Test (if tight hip flexors -> Hip Mobility issue).
-- CASE C (Lower Back Pain / Discomfort): Prescribe Primer Triad: Glute Activation + Core Deadbugs + Hamstring Bridge. Check for pelvic tilt / butt wink.
-- If issue is completely outside these cases, explain you found related research from extended web knowledge (for demo pitch).
+You MUST GROUND your diagnostic reasoning in our verified Biomechanics & Exercise Database:
+${dbContext}
+
+Decision Rules & Biomechanics Principles:
+- Case 1 (Unable to keep back straight / Forward Trunk Lean / Heels Lifting): Typically driven by Ankle Dorsiflexion restriction (forcing trunk forward to maintain center of gravity) OR fatigue/inhibition of Spinal Erectors / Anterior Core (Dead Bug, Bird Dog).
+- Case 2 (Knees Collapsing Inward / Knee Valgus): Weak gluteus medius/abductors (Clamshells, Glute Bridge) or foot pronation.
+- Case 3 (Lower Back Pain / Butt Wink): Lumbar rounding at depth due to tight hamstrings/adductors or pelvic tilt control.
+- If issue extends beyond squats, correlate with other joint/muscle mechanics from the database.
 
 Respond ONLY in this JSON format (no markdown):
 {
-  "potentialCause": "Short paragraph explaining the most likely biomechanical cause",
-  "confidence": "High / Medium / Low",
+  "potentialCause": "Detailed clinical analysis explaining the physiological mechanism and why this fault happens",
+  "confidence": "High / Medium",
+  "dbExercisesReferenced": ["Exact Name of relevant exercise 1 from DB", "Exact Name of relevant exercise 2 from DB"],
   "ptOptions": [
-    { "id": "opt1", "label": "Option Label (e.g. Heel-Elevated Squat Test)", "instruction": "What to tell the client to do step by step", "expectedOutcome": "What outcome confirms this diagnosis" },
-    { "id": "opt2", "label": "Option Label 2", "instruction": "...", "expectedOutcome": "..." }
+    {
+      "id": "opt1",
+      "label": "Name of diagnostic test (e.g. Heel-Elevated Squat Screen)",
+      "instruction": "Concrete step-by-step cue for client",
+      "expectedOutcome": "What result confirms or rules out this cause"
+    },
+    {
+      "id": "opt2",
+      "label": "Alternative diagnostic screen",
+      "instruction": "...",
+      "expectedOutcome": "..."
+    }
   ],
-  "outOfScope": "If the issue is totally outside the tree, put a note here, otherwise leave empty"
+  "outOfScope": "Leave empty if covered by database, or note any web-retrieved research"
 }`;
 
-  const userPrompt = `Client reported issue: "${issueText}"
+  const userPrompt = `Client: ${clientName}
+Client Goal: ${clientGoal}
+Movement Fault / Complaint: "${issueText}"
 
-Analyze this and provide diagnostic options according to your WikiGem tree.`;
+Cross-reference our database, identify the biomechanical cause, and output the JSON diagnostic options.`;
 
   // 1. Try OpenAI if API Key present
   if (OPENAI_API_KEY) {
@@ -63,8 +103,13 @@ Analyze this and provide diagnostic options according to your WikiGem tree.`;
         })
       });
       const data = await resp.json();
-      const text = data?.choices?.[0]?.message?.content || '{}';
-      return JSON.parse(text);
+      const text = data?.choices?.[0]?.message?.content;
+      if (text) {
+        const parsed = JSON.parse(text);
+        if (parsed.potentialCause && parsed.ptOptions && parsed.ptOptions.length > 0) {
+          return parsed;
+        }
+      }
     } catch (e) {
       console.error('OpenAI API error:', e);
     }
@@ -79,24 +124,40 @@ Analyze this and provide diagnostic options according to your WikiGem tree.`;
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: systemPrompt }] },
           contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-          generationConfig: { temperature: 0.3, responseMimeType: 'application/json' }
+          generationConfig: { temperature: 0.2, responseMimeType: 'application/json' }
         })
       });
       const data = await resp.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-      return JSON.parse(text);
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (text) {
+        const parsed = JSON.parse(text);
+        if (parsed.potentialCause && parsed.ptOptions && parsed.ptOptions.length > 0) {
+          return parsed;
+        }
+      }
     } catch (e) {
       console.error('Gemini API error:', e);
     }
   }
 
-  // 3. Fallback demo response
+  // 3. Fallback demo response grounded in DB
   return {
-    potentialCause: 'Based on the reported issue, the most likely cause is limited ankle dorsiflexion mobility preventing full squat depth, possibly combined with tight hip flexors. Both can cause compensatory heel lifting and forward trunk lean.',
+    potentialCause: 'Unable to keep the back straight during a squat is most commonly caused by restricted ankle dorsiflexion mobility (forcing excessive forward trunk pitch to maintain the center of mass over midfoot) or weak spinal erectors / anterior core stability (failing to resist trunk flexion).',
     confidence: 'High',
+    dbExercisesReferenced: ['Bodyweight Squat', 'Ankle Dorsiflexion stretch', 'Dead Bug', 'Bird Dog'],
     ptOptions: [
-      { id: 'opt1', label: 'Heel-Elevated Squat Test (Ankle Mobility)', instruction: 'Place small weight plates or a folded mat under both heels (approx 2cm elevation). Re-attempt the squat to full depth. Focus on keeping chest up.', expectedOutcome: 'If depth significantly improves with heels elevated, confirms ankle mobility restriction.' },
-      { id: 'opt2', label: 'Thomas Test (Hip Flexor Assessment)', instruction: 'Lie on edge of table. Pull both knees to chest, then lower one leg down. Observe if the lowered leg stays flat or knee bends past 90°.', expectedOutcome: 'If hip flexor is tight, the leg will not stay flat - confirms hip mobility as the primary restrictor.' }
+      {
+        id: 'opt1',
+        label: 'Heel-Elevated Squat Screen (Ankle vs Trunk)',
+        instruction: 'Place small wedges or 2.5kg plates under both heels and re-test the Bodyweight Squat. Keep chest proud.',
+        expectedOutcome: 'If client can keep back straight with heels elevated, root cause is ankle dorsiflexion restriction.'
+      },
+      {
+        id: 'opt2',
+        label: 'Wall Facing Squat Screen (Thoracic & Core Control)',
+        instruction: 'Stand 4 inches from a wall facing it with hands up. Perform a squat without hands or chest touching the wall.',
+        expectedOutcome: 'If client cannot perform without touching wall, confirms thoracic extension / anterior core control deficit.'
+      }
     ]
   };
 }
@@ -136,8 +197,11 @@ Respond ONLY in this JSON format (no markdown):
         })
       });
       const data = await resp.json();
-      const text = data?.choices?.[0]?.message?.content || '{}';
-      return JSON.parse(text);
+      const text = data?.choices?.[0]?.message?.content;
+      if (text) {
+        const parsed = JSON.parse(text);
+        if (parsed.conclusion && parsed.suggestedExercise) return parsed;
+      }
     } catch (e) {
       console.error('OpenAI AutoLog error:', e);
     }
@@ -154,8 +218,11 @@ Respond ONLY in this JSON format (no markdown):
         })
       });
       const data = await resp.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-      return JSON.parse(text);
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (text) {
+        const parsed = JSON.parse(text);
+        if (parsed.conclusion && parsed.suggestedExercise) return parsed;
+      }
     } catch (e) {
       console.error('Gemini AutoLog error:', e);
     }
@@ -219,8 +286,11 @@ Respond ONLY in this JSON format (no markdown):
         })
       });
       const data = await resp.json();
-      const text = data?.choices?.[0]?.message?.content || '{}';
-      return JSON.parse(text);
+      const text = data?.choices?.[0]?.message?.content;
+      if (text) {
+        const parsed = JSON.parse(text);
+        if (parsed.name && parsed.exercises && parsed.exercises.length > 0) return parsed;
+      }
     } catch (e) {
       console.error('OpenAI Blueprint error:', e);
     }
@@ -238,8 +308,11 @@ Respond ONLY in this JSON format (no markdown):
         })
       });
       const data = await resp.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-      return JSON.parse(text);
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (text) {
+        const parsed = JSON.parse(text);
+        if (parsed.name && parsed.exercises && parsed.exercises.length > 0) return parsed;
+      }
     } catch (e) {
       console.error('Gemini Blueprint error:', e);
     }
@@ -941,7 +1014,7 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
     if (!issueText.trim()) return;
     updateDiagState({ issueText, loggedBy, status: 'analyzing', analysis: null, approvedOption: null, clientResult: '', autoLogResult: null });
     setActiveTab('console');
-    const result = await callLLMDiagnostic(issueText, roomState?.expectedClientName || 'Client', 'Squat Rehab / Biomechanics Improvement');
+    const result = await callLLMDiagnostic(issueText, roomState?.expectedClientName || 'Client', 'Squat Rehab / Biomechanics Improvement', exerciseDictionary);
     updateDiagState({ analysis: result, status: 'awaiting_pt_approval' });
   };
 
@@ -1426,6 +1499,18 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
                           <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${ diagState.analysis.confidence === 'High' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400' }`}>{diagState.analysis.confidence} Confidence</span>
                         </div>
                         <p className="text-slate-200 text-xs leading-relaxed">{diagState.analysis.potentialCause}</p>
+                        {diagState.analysis.dbExercisesReferenced && diagState.analysis.dbExercisesReferenced.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2 border-t border-slate-700/60">
+                            <span className="text-[10px] uppercase font-bold text-amber-400 flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-amber-400" /> Grounded in DB:
+                            </span>
+                            {diagState.analysis.dbExercisesReferenced.map((exName: string, idx: number) => (
+                              <span key={idx} className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full font-mono">
+                                {exName}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                         {diagState.analysis.outOfScope && (
                           <p className="text-xs text-indigo-300 mt-2 italic">📡 {diagState.analysis.outOfScope}</p>
                         )}
