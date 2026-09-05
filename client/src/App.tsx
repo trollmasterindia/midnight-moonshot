@@ -5,7 +5,7 @@ import {
   Activity, ShieldCheck, UserCheck, Smartphone, 
   AlertCircle, CheckCircle2, Clock, Sparkles, QrCode, Send, UserX, Check, Users,
   LogOut, FileText, Calendar, ClipboardList, CheckCircle, Copy, Search, Brain, ChevronRight,
-  Dumbbell, Play
+  Dumbbell, Play, Video, PlayCircle, Eye, RefreshCw, X
 } from 'lucide-react';
 
 // -------------------------------------------------------
@@ -19,6 +19,199 @@ const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
 const GEMINI_MODEL = 'gemini-3.6-flash';
 const OPENAI_MODEL = 'gpt-5-nano';
 
+export interface CandidateVideo {
+  id: string;
+  title: string;
+  creator: string;
+  embedUrl: string;
+  whyRecommended: string;
+}
+
+export interface DiagnosticOption {
+  id: string;
+  label: string;
+  instruction: string;
+  expectedOutcome: string;
+  suggestedFixExercise?: string;
+  candidateVideos: CandidateVideo[];
+  approvedVideo?: CandidateVideo | null;
+}
+
+export const VERIFIED_CANDIDATE_VIDEOS: Record<string, CandidateVideo[]> = {
+  ankle: [
+    {
+      id: 'v-ankle-1',
+      title: 'Banded Ankle Mobilization Drill',
+      creator: 'Squat University',
+      embedUrl: 'https://www.youtube.com/embed/IikP_TEEAlk',
+      whyRecommended: 'Uses band distraction to clear anterior talocrural impingement and maximize knee-past-toes angle.'
+    },
+    {
+      id: 'v-ankle-2',
+      title: 'Knee-to-Wall Ankle Mobility Test & Fix',
+      creator: 'The Prehab Guys',
+      embedUrl: 'https://www.youtube.com/embed/2v7WqT_V_oM',
+      whyRecommended: 'Objective baseline test showing exact progress in centimeters from wall without lifting heel.'
+    },
+    {
+      id: 'v-ankle-3',
+      title: 'Deep Soleus & Achilles Eccentric Drop',
+      creator: 'Athlean-X',
+      embedUrl: 'https://www.youtube.com/embed/QPtS0hF9B8c',
+      whyRecommended: 'Addresses soft-tissue stiffness in deep soleus muscle that limits bottom squat depth.'
+    }
+  ],
+  heel_elevation: [
+    {
+      id: 'v-heel-1',
+      title: 'Why Elevating Heels Immediately Fixes Squat Form',
+      creator: 'Squat University',
+      embedUrl: 'https://www.youtube.com/embed/jdc2m_Oqgq8',
+      whyRecommended: 'Decreases dorsiflexion demand instantly, keeping trunk upright and protecting lumbar spine.'
+    },
+    {
+      id: 'v-heel-2',
+      title: 'Slant Board & Wedge Squat Biomechanics',
+      creator: 'Renaissance Periodization',
+      embedUrl: 'https://www.youtube.com/embed/1vR_s6-yG2A',
+      whyRecommended: 'Shows optimal 15-20 degree incline to overload quads cleanly without spinal shear.'
+    },
+    {
+      id: 'v-heel-3',
+      title: 'Box Squat Technique for Depth & Balance',
+      creator: 'Alan Thrall / Untamed Strength',
+      embedUrl: 'https://www.youtube.com/embed/u_XgT7K_X5M',
+      whyRecommended: 'Provides tactile target for depth and teaches client to sit back into hips safely.'
+    }
+  ],
+  glute_hip: [
+    {
+      id: 'v-glute-1',
+      title: 'The Perfect Banded Clamshell for Glute Medius',
+      creator: 'Squat University',
+      embedUrl: 'https://www.youtube.com/embed/q6U1j0jWwEE',
+      whyRecommended: 'Isolates gluteus medius to stop knees collapsing inward (valgus collapse).'
+    },
+    {
+      id: 'v-glute-2',
+      title: 'Glute Bridge Activation (Stop Hamstring Cramps)',
+      creator: 'Squat University',
+      embedUrl: 'https://www.youtube.com/embed/wPM8icPu6H8',
+      whyRecommended: 'Teaches posterior pelvic tilt to fire glute max without hyperextending lower back.'
+    },
+    {
+      id: 'v-glute-3',
+      title: 'Side-Lying Hip Abduction & Monster Walk',
+      creator: 'Bob & Brad Physical Therapy',
+      embedUrl: 'https://www.youtube.com/embed/XqE_c0V3eP4',
+      whyRecommended: 'Dynamic lateral stability drill for single-leg knee tracking.'
+    }
+  ],
+  core_spine: [
+    {
+      id: 'v-core-1',
+      title: 'Dead Bug Progression (Keep Lower Back Glued)',
+      creator: 'Squat University',
+      embedUrl: 'https://www.youtube.com/embed/g_BYB0R-4Ws',
+      whyRecommended: 'Gold-standard anti-extension drill preventing anterior pelvic tilt and rib flare.'
+    },
+    {
+      id: 'v-core-2',
+      title: 'The McGill Bird Dog for Spinal Stability',
+      creator: 'Dr. Stuart McGill / BackFitPro',
+      embedUrl: 'https://www.youtube.com/embed/wiFNA3sqjCA',
+      whyRecommended: 'High back-extensor endurance with minimal compressive load on the lumbar discs.'
+    },
+    {
+      id: 'v-core-3',
+      title: 'Hollow Body Hold & Ribcage Down Cue',
+      creator: 'Calisthenicmovement',
+      embedUrl: 'https://www.youtube.com/embed/pSHjTRCQxIw',
+      whyRecommended: 'Develops deep transverse abdominis tension required for bracing during heavy compound lifts.'
+    }
+  ],
+  hinge_back: [
+    {
+      id: 'v-hinge-1',
+      title: 'Master the Hip Hinge (Wall Tap Drill)',
+      creator: 'Squat University',
+      embedUrl: 'https://www.youtube.com/embed/NDfZi5fDaVM',
+      whyRecommended: 'Instant tactile feedback using wall to ensure hips slide backward instead of knees bending.'
+    },
+    {
+      id: 'v-hinge-2',
+      title: 'Dowel Rod 3-Point Neutral Spine Drill',
+      creator: 'Tony Gentilcore',
+      embedUrl: 'https://www.youtube.com/embed/R9lZ2-Vd8U8',
+      whyRecommended: 'Maintains contact at head, thoracic spine, and sacrum to prevent rounding.'
+    },
+    {
+      id: 'v-hinge-3',
+      title: 'How to Hinge with Lat Tension (No Back Pain)',
+      creator: 'Renaissance Periodization',
+      embedUrl: 'https://www.youtube.com/embed/L2tJ62d7c0E',
+      whyRecommended: 'Locks bar to shins with lats, dramatically cutting lower back shear forces.'
+    }
+  ],
+  push_shoulder: [
+    {
+      id: 'v-push-1',
+      title: 'Scapular Push-Up for Serratus & Scapular Winging',
+      creator: 'Athlean-X',
+      embedUrl: 'https://www.youtube.com/embed/IODxDxX7oi4',
+      whyRecommended: 'Builds serratus anterior strength to keep shoulder blade flush against ribcage.'
+    },
+    {
+      id: 'v-push-2',
+      title: 'Hands Elevated Incline Push-Up for Core Integrity',
+      creator: 'Squat University',
+      embedUrl: 'https://www.youtube.com/embed/bt5b9x9N0KU',
+      whyRecommended: 'Enables full depth and rigid plank line without sagging hips.'
+    },
+    {
+      id: 'v-push-3',
+      title: 'Face Pull Form & External Rotator Prehab',
+      creator: 'Jeff Nippard',
+      embedUrl: 'https://www.youtube.com/embed/rep-qVOkqgk',
+      whyRecommended: 'Balances internal rotation from pressing movements and restores shoulder posture.'
+    }
+  ]
+};
+
+export function enrichOptionVideos(rawOpt: any): DiagnosticOption {
+  const text = `${rawOpt.label || ''} ${rawOpt.instruction || ''} ${rawOpt.suggestedFixExercise || ''} ${rawOpt.expectedOutcome || ''}`.toLowerCase();
+  let defaultSet = VERIFIED_CANDIDATE_VIDEOS.heel_elevation;
+
+  if (text.includes('ankle') || text.includes('dorsiflex') || text.includes('calf') || text.includes('knee-to-wall')) {
+    defaultSet = VERIFIED_CANDIDATE_VIDEOS.ankle;
+  } else if (text.includes('heel') || text.includes('slant') || text.includes('wedge') || text.includes('box squat') || text.includes('depth')) {
+    defaultSet = VERIFIED_CANDIDATE_VIDEOS.heel_elevation;
+  } else if (text.includes('glute') || text.includes('clamshell') || text.includes('valgus') || text.includes('knee cave') || text.includes('bridge') || text.includes('abduct')) {
+    defaultSet = VERIFIED_CANDIDATE_VIDEOS.glute_hip;
+  } else if (text.includes('dead bug') || text.includes('bird dog') || text.includes('core') || text.includes('spine') || text.includes('back straight') || text.includes('hollow') || text.includes('pelvic tilt')) {
+    defaultSet = VERIFIED_CANDIDATE_VIDEOS.core_spine;
+  } else if (text.includes('hinge') || text.includes('rdl') || text.includes('deadlift') || text.includes('hamstring') || text.includes('butt wink')) {
+    defaultSet = VERIFIED_CANDIDATE_VIDEOS.hinge_back;
+  } else if (text.includes('push') || text.includes('scapula') || text.includes('shoulder') || text.includes('press') || text.includes('elbow') || text.includes('serratus')) {
+    defaultSet = VERIFIED_CANDIDATE_VIDEOS.push_shoulder;
+  }
+
+  // If rawOpt already came with valid candidate videos, merge or use them
+  const rawVideos = Array.isArray(rawOpt.candidateVideos) && rawOpt.candidateVideos.length >= 2 
+    ? rawOpt.candidateVideos 
+    : defaultSet;
+
+  return {
+    id: rawOpt.id || `opt-${Date.now()}`,
+    label: rawOpt.label || 'Diagnostic Test Screen',
+    instruction: rawOpt.instruction || 'Perform test movement under PT observation.',
+    expectedOutcome: rawOpt.expectedOutcome || 'Confirms or rules out suspected mechanical fault.',
+    suggestedFixExercise: rawOpt.suggestedFixExercise || '',
+    candidateVideos: rawVideos,
+    approvedVideo: null
+  };
+}
+
 async function callLLMDiagnostic(
   issueText: string,
   clientName: string,
@@ -28,7 +221,7 @@ async function callLLMDiagnostic(
   potentialCause: string;
   confidence: string;
   dbExercisesReferenced?: string[];
-  ptOptions: { id: string; label: string; instruction: string; expectedOutcome: string }[];
+  ptOptions: DiagnosticOption[];
   outOfScope?: string;
 }> {
   // Format verified exercises from SpaceTimeDB to ground the AI in our DB
@@ -50,11 +243,15 @@ You diagnose movement faults and prescribe diagnostic screens and corrective exe
 You MUST GROUND your diagnostic reasoning in our verified Biomechanics & Exercise Database:
 ${dbContext}
 
-Decision Rules & Biomechanics Principles:
-- Case 1 (Unable to keep back straight / Forward Trunk Lean / Heels Lifting): Typically driven by Ankle Dorsiflexion restriction (forcing trunk forward to maintain center of gravity) OR fatigue/inhibition of Spinal Erectors / Anterior Core (Dead Bug, Bird Dog).
-- Case 2 (Knees Collapsing Inward / Knee Valgus): Weak gluteus medius/abductors (Clamshells, Glute Bridge) or foot pronation.
-- Case 3 (Lower Back Pain / Butt Wink): Lumbar rounding at depth due to tight hamstrings/adductors or pelvic tilt control.
-- If issue extends beyond squats, correlate with other joint/muscle mechanics from the database.
+Decision Rules & Biomechanics Principles across major movements:
+- Squat Case 1 (Unable to keep back straight / Forward Trunk Lean / Heels Lifting): Typically driven by Ankle Dorsiflexion restriction (forcing trunk forward to maintain center of gravity) OR fatigue/inhibition of Spinal Erectors / Anterior Core (Dead Bug, Bird Dog).
+- Squat Case 2 (Knees Collapsing Inward / Knee Valgus): Weak gluteus medius/abductors (Clamshells, Glute Bridge) or foot pronation.
+- Squat Case 3 (Lower Back Pain / Butt Wink): Lumbar rounding at depth due to tight hamstrings/adductors or pelvic tilt control.
+- Hinge / RDL Case (Back rounding / bar drifting): Hamstring restriction or lat disengagement.
+- Push-Up Case (Hips sagging / shoulder pinch): Anterior core weakness or elbow flaring > 75 degrees.
+- Press Case (Excessive lumbar arching): Thoracic mobility or lat stiffness.
+
+For each option in "ptOptions", propose a concrete test label, instructions, expected outcome, suggestedFixExercise, and 2-3 candidateVideos with YouTube embed URLs (from verified creators like Squat University, Renaissance Periodization, Athlean-X, The Prehab Guys).
 
 Respond ONLY in this JSON format (no markdown):
 {
@@ -66,13 +263,24 @@ Respond ONLY in this JSON format (no markdown):
       "id": "opt1",
       "label": "Name of diagnostic test (e.g. Heel-Elevated Squat Screen)",
       "instruction": "Concrete step-by-step cue for client",
-      "expectedOutcome": "What result confirms or rules out this cause"
-    },
-    {
-      "id": "opt2",
-      "label": "Alternative diagnostic screen",
-      "instruction": "...",
-      "expectedOutcome": "..."
+      "expectedOutcome": "What result confirms or rules out this cause",
+      "suggestedFixExercise": "Heel Elevated Squat",
+      "candidateVideos": [
+        {
+          "id": "v1",
+          "title": "Why Elevating Heels Immediately Fixes Squat Form",
+          "creator": "Squat University",
+          "embedUrl": "https://www.youtube.com/embed/jdc2m_Oqgq8",
+          "whyRecommended": "Instant clinical screen for ankle dorsiflexion deficit"
+        },
+        {
+          "id": "v2",
+          "title": "Slant Board & Wedge Squat Biomechanics",
+          "creator": "Renaissance Periodization",
+          "embedUrl": "https://www.youtube.com/embed/1vR_s6-yG2A",
+          "whyRecommended": "Shows optimal wedge mechanics to isolate quads safely"
+        }
+      ]
     }
   ],
   "outOfScope": "Leave empty if covered by database, or note any web-retrieved research"
@@ -82,7 +290,7 @@ Respond ONLY in this JSON format (no markdown):
 Client Goal: ${clientGoal}
 Movement Fault / Complaint: "${issueText}"
 
-Cross-reference our database, identify the biomechanical cause, and output the JSON diagnostic options.`;
+Cross-reference our database, identify the biomechanical cause, and output the JSON diagnostic options with candidate tutorial videos.`;
 
   // 1. Try OpenAI if API Key present
   if (OPENAI_API_KEY) {
@@ -108,6 +316,7 @@ Cross-reference our database, identify the biomechanical cause, and output the J
       if (text) {
         const parsed = JSON.parse(text);
         if (parsed.potentialCause && parsed.ptOptions && parsed.ptOptions.length > 0) {
+          parsed.ptOptions = parsed.ptOptions.map(enrichOptionVideos);
           return parsed;
         }
       }
@@ -133,6 +342,7 @@ Cross-reference our database, identify the biomechanical cause, and output the J
       if (text) {
         const parsed = JSON.parse(text);
         if (parsed.potentialCause && parsed.ptOptions && parsed.ptOptions.length > 0) {
+          parsed.ptOptions = parsed.ptOptions.map(enrichOptionVideos);
           return parsed;
         }
       }
@@ -142,24 +352,30 @@ Cross-reference our database, identify the biomechanical cause, and output the J
   }
 
   // 3. Fallback demo response grounded in DB
+  const fallbackOptions = [
+    {
+      id: 'opt1',
+      label: 'Heel-Elevated Squat Screen (Ankle vs Trunk)',
+      instruction: 'Place small wedges or 2.5kg plates under both heels and re-test the squat. Keep chest proud.',
+      expectedOutcome: 'If client can keep back straight with heels elevated, root cause is ankle dorsiflexion restriction.',
+      suggestedFixExercise: 'Heel Elevated Squat',
+      candidateVideos: VERIFIED_CANDIDATE_VIDEOS.heel_elevation
+    },
+    {
+      id: 'opt2',
+      label: 'Wall Facing Squat Screen (Thoracic & Core Control)',
+      instruction: 'Stand 4 inches from a wall facing it with hands up. Perform a squat without hands or chest touching the wall.',
+      expectedOutcome: 'If client cannot perform without touching wall, confirms thoracic extension / anterior core control deficit.',
+      suggestedFixExercise: 'Dead Bug / Wall Squat',
+      candidateVideos: VERIFIED_CANDIDATE_VIDEOS.core_spine
+    }
+  ];
+
   return {
     potentialCause: 'Unable to keep the back straight during a squat is most commonly caused by restricted ankle dorsiflexion mobility (forcing excessive forward trunk pitch to maintain the center of mass over midfoot) or weak spinal erectors / anterior core stability (failing to resist trunk flexion).',
     confidence: 'High',
     dbExercisesReferenced: ['Bodyweight Squat', 'Ankle Dorsiflexion stretch', 'Dead Bug', 'Bird Dog'],
-    ptOptions: [
-      {
-        id: 'opt1',
-        label: 'Heel-Elevated Squat Screen (Ankle vs Trunk)',
-        instruction: 'Place small wedges or 2.5kg plates under both heels and re-test the Bodyweight Squat. Keep chest proud.',
-        expectedOutcome: 'If client can keep back straight with heels elevated, root cause is ankle dorsiflexion restriction.'
-      },
-      {
-        id: 'opt2',
-        label: 'Wall Facing Squat Screen (Thoracic & Core Control)',
-        instruction: 'Stand 4 inches from a wall facing it with hands up. Perform a squat without hands or chest touching the wall.',
-        expectedOutcome: 'If client cannot perform without touching wall, confirms thoracic extension / anterior core control deficit.'
-      }
-    ]
+    ptOptions: fallbackOptions.map(enrichOptionVideos)
   };
 }
 
@@ -915,30 +1131,207 @@ function PTDashboard({ rooms }: { rooms: RoomData[] }) {
 // -------------------------------------------------------// DiagnosticState shared between PT console and Client view via sessionStorage
 const DIAG_STATE_KEY = 'physiosync_diag_state';
 
-const squatExerciseTemplate = {
-  name: 'Bodyweight Squat',
-  videoUrl: 'https://www.youtube.com/embed/dW3zj79xfrc',
-  imageUrl: 'https://i0.wp.com/www.strengthlog.com/wp-content/uploads/2020/05/Squat-muscles-worked.png?resize=700%2C700&ssl=1',
-  commonIssues: [
-    { id: 'knee-valgus', title: 'Knees Collapsing Inward', icon: '🦵' },
-    { id: 'heel-lift', title: 'Heels Lifting Off Floor / Unable to keep back straight', icon: '🦶' },
-    { id: 'butt-wink', title: 'Lower Back Rounding', icon: '🍑' },
-    { id: 'no-depth', title: "Can't Reach Depth", icon: '⬇️' },
-    { id: 'back-pain', title: 'Lower Back Discomfort', icon: '🔴' },
-  ]
-};
+export interface StarterExercise {
+  id: string;
+  name: string;
+  category: string;
+  videoUrl: string;
+  imageUrl: string;
+  musclesTargeted: string;
+  commonIssues: { id: string; title: string; icon: string }[];
+}
+
+export const starterExercises: StarterExercise[] = [
+  {
+    id: 'bodyweight-squat',
+    name: 'Bodyweight Squat',
+    category: 'Lower Body Push',
+    musclesTargeted: 'Quads, Gluteus Maximus, Adductor Magnus',
+    videoUrl: 'https://www.youtube.com/embed/dW3zj79xfrc',
+    imageUrl: 'https://i0.wp.com/www.strengthlog.com/wp-content/uploads/2020/05/Squat-muscles-worked.png?resize=700%2C700&ssl=1',
+    commonIssues: [
+      { id: 'heel-lift', title: 'Heels Lifting Off Floor / Unable to keep back straight', icon: '🦶' },
+      { id: 'knee-valgus', title: 'Knees Collapsing Inward (Valgus)', icon: '🦵' },
+      { id: 'butt-wink', title: 'Lower Back Rounding at Bottom (Butt Wink)', icon: '🍑' },
+      { id: 'no-depth', title: "Cannot Reach Parallel Depth", icon: '⬇️' },
+      { id: 'back-pain', title: 'Excessive Forward Lean / Lower Back Discomfort', icon: '🔴' }
+    ]
+  },
+  {
+    id: 'rdl',
+    name: 'Romanian Deadlift (RDL)',
+    category: 'Lower Body Hinge',
+    musclesTargeted: 'Hamstrings, Gluteus Maximus, Erector Spinae',
+    videoUrl: 'https://www.youtube.com/embed/NDfZi5fDaVM',
+    imageUrl: 'https://i0.wp.com/www.strengthlog.com/wp-content/uploads/2020/12/Romanian-deadlift-muscles-worked.png?resize=700%2C700&ssl=1',
+    commonIssues: [
+      { id: 'rdl-lumbar-round', title: 'Lower Back Rounding During Descent', icon: '🔴' },
+      { id: 'rdl-bar-drift', title: 'Weight Drifting Away from Shins / Legs', icon: '↔️' },
+      { id: 'rdl-hyperextend', title: 'Hyperextending Lumbar Spine at Lockout', icon: '⚡' },
+      { id: 'rdl-knee-bend', title: 'Bending Knees Too Much (Turning into Squat)', icon: '🦵' },
+      { id: 'rdl-hamstring-tight', title: 'Hamstring Pain / Inability to Push Hips Back', icon: '🍑' }
+    ]
+  },
+  {
+    id: 'bulgarian-split-squat',
+    name: 'Bulgarian Split Squat',
+    category: 'Lower Body Unilateral',
+    musclesTargeted: 'Quads, Gluteus Medius, Core Stability',
+    videoUrl: 'https://www.youtube.com/embed/2C-uNgKwPLE',
+    imageUrl: 'https://i0.wp.com/www.strengthlog.com/wp-content/uploads/2020/12/Bulgarian-split-squat-muscles-worked.png?resize=700%2C700&ssl=1',
+    commonIssues: [
+      { id: 'bss-valgus', title: 'Front Knee Wobbling or Collapsing Inward', icon: '🦵' },
+      { id: 'bss-balance', title: 'Losing Balance / Shaky Ankle Stability', icon: '⚖️' },
+      { id: 'bss-hip-flexor', title: 'Pinching or Strain in Rear Hip Flexor', icon: '🔴' },
+      { id: 'bss-torso-drop', title: 'Torso Collapsing Forward Over Front Thigh', icon: '⬇️' },
+      { id: 'bss-heel-lift', title: 'Front Heel Lifting Off Ground', icon: '🦶' }
+    ]
+  },
+  {
+    id: 'push-up',
+    name: 'Push-Up',
+    category: 'Upper Body Push',
+    musclesTargeted: 'Pectoralis Major, Anterior Deltoid, Triceps, Anterior Core',
+    videoUrl: 'https://www.youtube.com/embed/IODxDxX7oi4',
+    imageUrl: 'https://i0.wp.com/www.strengthlog.com/wp-content/uploads/2020/11/Push-up-muscles-worked.png?resize=700%2C700&ssl=1',
+    commonIssues: [
+      { id: 'pu-hip-sag', title: 'Hips Sagging / Lumbar Arching (Weak Core)', icon: '⬇️' },
+      { id: 'pu-elbow-flare', title: 'Elbows Flaring Out 90° (Shoulder Impingement)', icon: '📐' },
+      { id: 'pu-winging', title: 'Scapular Winging / Chest Not Touching Depth', icon: '🪽' },
+      { id: 'pu-head-poke', title: 'Forward Head Poke / Neck Strain', icon: '🗣️' },
+      { id: 'pu-wrist-pain', title: 'Wrist Extension Discomfort', icon: '✋' }
+    ]
+  },
+  {
+    id: 'overhead-press',
+    name: 'Overhead Dumbbell Press',
+    category: 'Upper Body Vertical Push',
+    musclesTargeted: 'Anterior & Lateral Deltoids, Triceps, Upper Trapezius',
+    videoUrl: 'https://www.youtube.com/embed/2yjwXTZQDDI',
+    imageUrl: 'https://i0.wp.com/www.strengthlog.com/wp-content/uploads/2020/12/Dumbbell-shoulder-press-muscles-worked.png?resize=700%2C700&ssl=1',
+    commonIssues: [
+      { id: 'ohp-lumbar-arch', title: 'Excessive Lower Back Arching to Push Upward', icon: '🔴' },
+      { id: 'ohp-pinch', title: 'Shoulder Pinching / Impingement at Top', icon: '⚡' },
+      { id: 'ohp-flare', title: 'Flaring Elbows Behind Plane of Torso', icon: '📐' },
+      { id: 'ohp-uneven', title: 'Uneven Pressing (Dominant Side Locks Early)', icon: '⚖️' },
+      { id: 'ohp-shrug', title: 'Shrugging Traps into Neck Rather Than Upward Rotate', icon: '💆' }
+    ]
+  },
+  {
+    id: 'glute-bridge',
+    name: 'Glute Bridge',
+    category: 'Rehab / Posterior Chain',
+    musclesTargeted: 'Gluteus Maximus, Hamstrings, Core Bracing',
+    videoUrl: 'https://www.youtube.com/embed/wPM8icPu6H8',
+    imageUrl: 'https://i0.wp.com/www.strengthlog.com/wp-content/uploads/2021/04/Glute-bridge-muscles-worked.png?resize=700%2C700&ssl=1',
+    commonIssues: [
+      { id: 'gb-hamstring-cramp', title: 'Hamstrings Cramping Instead of Glutes Firing', icon: '⚡' },
+      { id: 'gb-lower-back', title: 'Arching Lumbar Spine Instead of Pelvic Tilt', icon: '🔴' },
+      { id: 'gb-toe-push', title: 'Pushing Through Toes Instead of Driving Heels', icon: '🦶' },
+      { id: 'gb-sag', title: 'Incomplete Hip Extension / Hips Dropping Early', icon: '⬇️' },
+      { id: 'gb-knee-valgus', title: 'Knees Flaring or Collapsing Inward', icon: '🦵' }
+    ]
+  },
+  {
+    id: 'dead-bug',
+    name: 'Dead Bug',
+    category: 'Core Anti-Extension',
+    musclesTargeted: 'Transverse Abdominis, Rectus Abdominis, Hip Flexors',
+    videoUrl: 'https://www.youtube.com/embed/g_BYB0R-4Ws',
+    imageUrl: 'https://i0.wp.com/www.strengthlog.com/wp-content/uploads/2022/01/Dead-bug-muscles-worked.png?resize=700%2C700&ssl=1',
+    commonIssues: [
+      { id: 'db-back-arch', title: 'Lower Back Lifting Off Floor When Extending Limbs', icon: '🔴' },
+      { id: 'db-rib-flare', title: 'Ribcage Flaring Upward / Loss of Hollow Body', icon: '💨' },
+      { id: 'db-neck-strain', title: 'Tensing Neck & Upper Traps', icon: '💆' },
+      { id: 'db-hip-click', title: 'Clicking or Popping in Anterior Hip Capsule', icon: '🦴' },
+      { id: 'db-momentum', title: 'Rushing Movement / Lack of Controlled Tempo', icon: '⚡' }
+    ]
+  },
+  {
+    id: 'bird-dog',
+    name: 'Bird Dog',
+    category: 'Spinal Stability / Posterior Chain',
+    musclesTargeted: 'Erector Spinae, Multifidus, Glutes, Deltoids',
+    videoUrl: 'https://www.youtube.com/embed/wiFNA3sqjCA',
+    imageUrl: 'https://i0.wp.com/www.strengthlog.com/wp-content/uploads/2022/01/Bird-dog-muscles-worked.png?resize=700%2C700&ssl=1',
+    commonIssues: [
+      { id: 'bd-pelvis-tilt', title: 'Pelvis Rotating or Dipping to One Side', icon: '⚖️' },
+      { id: 'bd-hyperextend', title: 'Lower Back Hyperextending / Sagging', icon: '🔴' },
+      { id: 'bd-neck-crane', title: 'Craning Neck Upward Instead of Packing Chin', icon: '🗣️' },
+      { id: 'bd-shrug', title: 'Supporting Shoulder Collapsing into Ear', icon: '📐' },
+      { id: 'bd-wobble', title: 'Shaking on Supporting Knee & Hand', icon: '⚡' }
+    ]
+  },
+  {
+    id: 'clamshells',
+    name: 'Clamshells',
+    category: 'Hip Rehab / Glute Medius',
+    musclesTargeted: 'Gluteus Medius, Gluteus Minimus, Deep External Rotators',
+    videoUrl: 'https://www.youtube.com/embed/q6U1j0jWwEE',
+    imageUrl: 'https://i0.wp.com/www.strengthlog.com/wp-content/uploads/2021/04/Clamshell-muscles-worked.png?resize=700%2C700&ssl=1',
+    commonIssues: [
+      { id: 'cs-roll-back', title: 'Rolling Pelvis Backward When Opening Knee', icon: '🔄' },
+      { id: 'cs-tfl-burn', title: 'Feeling Burn in Front TFL Instead of Lateral Glute', icon: '🔴' },
+      { id: 'cs-foot-lift', title: 'Feet Separating from Each Other', icon: '🦶' },
+      { id: 'cs-limited-rom', title: 'Extremely Limited Knee Separation Angle', icon: '📐' },
+      { id: 'cs-spine-twist', title: 'Twisting Lumbar Spine to Assist Movement', icon: '⚡' }
+    ]
+  },
+  {
+    id: 'side-plank',
+    name: 'Side Plank',
+    category: 'Core Anti-Lateral Flexion',
+    musclesTargeted: 'Obliques, Quadratus Lumborum, Gluteus Medius',
+    videoUrl: 'https://www.youtube.com/embed/K2VljzCC16g',
+    imageUrl: 'https://i0.wp.com/www.strengthlog.com/wp-content/uploads/2021/03/Side-plank-muscles-worked.png?resize=700%2C700&ssl=1',
+    commonIssues: [
+      { id: 'sp-hip-sag', title: 'Hips Sagging Downward Toward the Floor', icon: '⬇️' },
+      { id: 'sp-rotation', title: 'Top Hip Rolling Forward or Backward', icon: '🔄' },
+      { id: 'sp-shoulder-sink', title: 'Bottom Shoulder Collapsing / Ear Sinking', icon: '📐' },
+      { id: 'sp-neck-strain', title: 'Head Hanging Down / Severe Neck Strain', icon: '🗣️' },
+      { id: 'sp-elbow-pain', title: 'Elbow Pressure on Floor', icon: '⚡' }
+    ]
+  },
+  {
+    id: 'inverted-row',
+    name: 'Inverted Row / Pull-Up',
+    category: 'Upper Body Pull',
+    musclesTargeted: 'Latissimus Dorsi, Rhomboids, Biceps, Core',
+    videoUrl: 'https://www.youtube.com/embed/e50eWd0A_jE',
+    imageUrl: 'https://i0.wp.com/www.strengthlog.com/wp-content/uploads/2020/12/Pull-up-muscles-worked.png?resize=700%2C700&ssl=1',
+    commonIssues: [
+      { id: 'row-shoulder-dump', title: 'Shoulders Dumping Forward at Top of Pull', icon: '🔴' },
+      { id: 'row-no-retract', title: 'Pulling with Arms Without Retracting Scapulae', icon: '📐' },
+      { id: 'row-bicep-cramp', title: 'Overusing Forearms / Biceps and Not Feeling Back', icon: '💪' },
+      { id: 'row-hip-sag', title: 'Hips Dropping Down (Breaking Rigid Body Line)', icon: '⬇️' },
+      { id: 'row-half-rep', title: 'Inability to Touch Chest to Bar / Ring', icon: '⚡' }
+    ]
+  },
+  {
+    id: 'ankle-dorsiflexion',
+    name: 'Ankle Dorsiflexion Mobility',
+    category: 'Mobility Screen & Rehab',
+    musclesTargeted: 'Soleus, Gastrocnemius, Talocrural Joint Capsule',
+    videoUrl: 'https://www.youtube.com/embed/2v7WqT_V_oM',
+    imageUrl: 'https://i0.wp.com/www.strengthlog.com/wp-content/uploads/2020/05/Squat-muscles-worked.png?resize=700%2C700&ssl=1',
+    commonIssues: [
+      { id: 'ankle-early-lift', title: 'Heel Lifting Early in Knee-to-Wall Drive', icon: '🦶' },
+      { id: 'ankle-pinch', title: 'Anterior Joint Pinching in Front of Ankle', icon: '🔴' },
+      { id: 'ankle-pronation', title: 'Foot Collapsing / Rolling Inward to Cheat Range', icon: '🔄' },
+      { id: 'ankle-knee-caving', title: 'Knee Tracking Inside Big Toe Rather Than 2nd Toe', icon: '🦵' },
+      { id: 'ankle-asymmetry', title: 'Significant Asymmetry Between Left and Right Ankle', icon: '⚖️' }
+    ]
+  }
+];
+
+export const squatExerciseTemplate = starterExercises[0];
 
 interface DiagnosticState {
-  assignedExercise: {
-    name: string;
-    videoUrl: string;
-    imageUrl: string;
-    commonIssues: { id: string; title: string; icon: string }[];
-  } | null;
+  assignedExercise: StarterExercise | null;
   issueText: string;
   loggedBy: 'PT' | 'CLIENT';
   analysis: any | null;
-  approvedOption: any | null;
+  approvedOption: DiagnosticOption | null;
   clientResult: string;
   autoLogResult: any | null;
   status: 'idle' | 'needs_pt_analysis' | 'analyzing' | 'awaiting_pt_approval' | 'awaiting_client_result' | 'client_result_submitted' | 'auto_logging' | 'complete';
@@ -963,9 +1356,14 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
     clientResult: '', autoLogResult: null, status: 'idle'
   });
   const [ptIssueInput, setPtIssueInput] = useState('');
+  const [selectedStarterExId, setSelectedStarterExId] = useState<string>(starterExercises[0].id);
+  const [isExercisePickerOpen, setIsExercisePickerOpen] = useState<boolean>(false);
+  const [previewingOption, setPreviewingOption] = useState<DiagnosticOption | null>(null);
+  const [selectedCandidateVideo, setSelectedCandidateVideo] = useState<CandidateVideo | null>(null);
 
-  const handleAssignExercise = (ex: typeof squatExerciseTemplate) => {
+  const handleAssignExercise = (ex: StarterExercise) => {
     updateDiagState({ assignedExercise: ex });
+    setIsExercisePickerOpen(false);
   };
 
   const activeBlueprint = blueprints.find(b => b.roomId === roomState?.roomId && b.isActiveDayPlan && b.name !== '__DIAGNOSTIC_STATE__');
@@ -1042,12 +1440,25 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
     if (!issueText.trim()) return;
     updateDiagState({ issueText, loggedBy, status: 'analyzing', analysis: null, approvedOption: null, clientResult: '', autoLogResult: null });
     setActiveTab('console');
-    const result = await callLLMDiagnostic(issueText, roomState?.expectedClientName || 'Client', 'Squat Rehab / Biomechanics Improvement', exerciseDictionary);
+    const currentMovement = diagState.assignedExercise?.name || 'Movement';
+    const result = await callLLMDiagnostic(issueText, roomState?.expectedClientName || 'Client', `${currentMovement} Rehab / Biomechanics Assessment`, exerciseDictionary);
     updateDiagState({ analysis: result, status: 'awaiting_pt_approval' });
+    if (result.ptOptions && result.ptOptions.length > 0) {
+      setPreviewingOption(result.ptOptions[0]);
+      if (result.ptOptions[0].candidateVideos && result.ptOptions[0].candidateVideos.length > 0) {
+        setSelectedCandidateVideo(result.ptOptions[0].candidateVideos[0]);
+      }
+    }
   };
 
-  const handleApproveOption = async (option: any) => {
-    updateDiagState({ approvedOption: option, status: 'awaiting_client_result' });
+  const handleApproveOption = async (option: DiagnosticOption, chosenVideo?: CandidateVideo | null) => {
+    const fullOption: DiagnosticOption = {
+      ...option,
+      approvedVideo: chosenVideo || null
+    };
+    updateDiagState({ approvedOption: fullOption, status: 'awaiting_client_result' });
+    setPreviewingOption(null);
+    setSelectedCandidateVideo(null);
   };
 
   const handleAutoLog = async () => {
@@ -1474,28 +1885,74 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
                 </div>
 
                 {/* ─── EXERCISE ASSIGNMENT STATUS ─── */}
-                {!diagState.assignedExercise ? (
-                  <div className="border-2 border-indigo-500/50 bg-indigo-950/40 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg shadow-indigo-950/50">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-indigo-500/20 p-3 rounded-xl border border-indigo-500/30 text-indigo-400">
-                        <Dumbbell className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] uppercase font-bold tracking-wider bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/30">Action Required</span>
-                          <span className="text-xs text-amber-300 font-medium">Patient waiting on screen</span>
+                {!diagState.assignedExercise || isExercisePickerOpen ? (
+                  <div className="border-2 border-indigo-500/50 bg-indigo-950/40 rounded-xl p-4 flex flex-col gap-3 shadow-lg shadow-indigo-950/50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-indigo-500/20 p-2.5 rounded-xl border border-indigo-500/30 text-indigo-400">
+                          <Dumbbell className="w-6 h-6" />
                         </div>
-                        <h4 className="text-white font-bold text-base mt-0.5">Assign Squat Exercise to Patient</h4>
-                        <p className="text-xs text-slate-300">Push instructional video, muscle anatomy, and issue tracking directly to patient's screen.</p>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] uppercase font-bold tracking-wider bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/30">
+                              {diagState.assignedExercise ? 'Switch Exercise' : 'Action Required'}
+                            </span>
+                            <span className="text-xs text-amber-300 font-medium">
+                              {diagState.assignedExercise ? 'Patient connected' : 'Patient waiting on screen'}
+                            </span>
+                          </div>
+                          <h4 className="text-white font-bold text-base mt-0.5">Select & Assign Starter Exercise</h4>
+                        </div>
+                      </div>
+                      {diagState.assignedExercise && (
+                        <button
+                          onClick={() => setIsExercisePickerOpen(false)}
+                          className="text-xs text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-indigo-500/20">
+                      <div className="sm:col-span-2">
+                        <label className="text-[11px] text-slate-300 font-bold uppercase tracking-wider block mb-1.5">
+                          Choose Starter Movement ({starterExercises.length} available):
+                        </label>
+                        <select
+                          value={selectedStarterExId}
+                          onChange={e => setSelectedStarterExId(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-lg p-2.5 outline-none focus:border-indigo-500"
+                        >
+                          {starterExercises.map(ex => (
+                            <option key={ex.id} value={ex.id}>
+                              {ex.name} — {ex.category} ({ex.commonIssues.length} failure cues)
+                            </option>
+                          ))}
+                        </select>
+                        {(() => {
+                          const ex = starterExercises.find(e => e.id === selectedStarterExId) || starterExercises[0];
+                          return (
+                            <p className="text-[11px] text-slate-400 mt-1.5">
+                              <span className="text-indigo-300 font-semibold">Muscles:</span> {ex.musclesTargeted}
+                            </p>
+                          );
+                        })()}
+                      </div>
+
+                      <div className="flex items-end">
+                        <button
+                          onClick={() => {
+                            const ex = starterExercises.find(e => e.id === selectedStarterExId) || starterExercises[0];
+                            handleAssignExercise(ex);
+                          }}
+                          className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 transition-all h-[38px]"
+                        >
+                          <Play className="w-4 h-4 fill-current" />
+                          <span>Assign to Patient</span>
+                        </button>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleAssignExercise(squatExerciseTemplate)}
-                      className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-5 py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 transition-all shrink-0"
-                    >
-                      <Play className="w-4 h-4 fill-current" />
-                      <span>Assign Squat Exercise</span>
-                    </button>
                   </div>
                 ) : (
                   <div className="border border-emerald-500/40 bg-emerald-950/20 rounded-xl p-3.5 flex items-center justify-between gap-3">
@@ -1507,16 +1964,26 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">Active On Patient Screen</span>
                           <span className="text-[10px] bg-emerald-500/10 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/20">Live</span>
+                          <span className="text-[10px] text-slate-400">({diagState.assignedExercise.category})</span>
                         </div>
                         <h4 className="text-white font-bold text-sm">{diagState.assignedExercise.name}</h4>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleAssignExercise(squatExerciseTemplate)}
-                      className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 transition-all shrink-0"
-                    >
-                      Re-push to Screen
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setIsExercisePickerOpen(true)}
+                        className="text-xs bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 px-3 py-1.5 rounded-lg border border-indigo-500/30 transition-all flex items-center gap-1.5"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Switch Exercise</span>
+                      </button>
+                      <button
+                        onClick={() => handleAssignExercise(diagState.assignedExercise!)}
+                        className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 transition-all shrink-0"
+                      >
+                        Re-push
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -1617,24 +2084,154 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
                           <p className="text-xs text-indigo-300 mt-2 italic">📡 {diagState.analysis.outOfScope}</p>
                         )}
                       </div>
-                      <div className="space-y-2">
-                        <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Select Diagnostic Action to Send to Client:</p>
-                        {diagState.analysis.ptOptions?.map((opt: any) => (
-                          <button
-                            key={opt.id}
-                            onClick={() => handleApproveOption(opt)}
-                            className="w-full text-left bg-slate-800 hover:bg-indigo-900/40 border border-slate-700 hover:border-indigo-500/60 rounded-lg p-3 transition-all group"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="text-white font-bold text-xs flex items-center gap-2">
-                                <ChevronRight className="w-3.5 h-3.5 text-indigo-400 group-hover:translate-x-1 transition-transform" />
-                                {opt.label}
+
+                      {/* ─── PT DIAGNOSTIC ACTION & VIDEO SELECTION ─── */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">
+                            Select Diagnostic Action & Preview Videos:
+                          </p>
+                          <span className="text-[10px] text-indigo-400 font-medium">PT Review Mode</span>
+                        </div>
+
+                        {/* List of Diagnostic Options */}
+                        <div className="space-y-2">
+                          {diagState.analysis.ptOptions?.map((opt: DiagnosticOption) => {
+                            const isSelected = previewingOption?.id === opt.id;
+                            return (
+                              <div
+                                key={opt.id}
+                                onClick={() => {
+                                  setPreviewingOption(opt);
+                                  if (opt.candidateVideos && opt.candidateVideos.length > 0) {
+                                    setSelectedCandidateVideo(opt.candidateVideos[0]);
+                                  }
+                                }}
+                                className={`cursor-pointer w-full text-left rounded-xl p-3.5 transition-all border ${
+                                  isSelected
+                                    ? 'bg-indigo-950/60 border-indigo-500 shadow-lg shadow-indigo-950/50'
+                                    : 'bg-slate-900/80 hover:bg-slate-800/80 border-slate-700'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="text-white font-bold text-xs flex items-center gap-2">
+                                    <ChevronRight className={`w-3.5 h-3.5 ${isSelected ? 'text-indigo-400 rotate-90' : 'text-slate-500'} transition-transform`} />
+                                    {opt.label}
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    {opt.candidateVideos && opt.candidateVideos.length > 0 && (
+                                      <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                        <Video className="w-3 h-3" /> {opt.candidateVideos.length} Videos
+                                      </span>
+                                    )}
+                                    <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                                      {isSelected ? 'Previewing' : 'Inspect'}
+                                    </span>
+                                  </div>
+                                </div>
+                                <p className="text-slate-400 text-xs mt-1.5 ml-5 leading-relaxed">{opt.instruction}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* ─── VIDEO CANDIDATE PREVIEW & SELECTION CARD ─── */}
+                        {previewingOption && (
+                          <div className="bg-slate-900 border-2 border-indigo-500/60 rounded-xl p-4 space-y-3.5 mt-3 shadow-xl">
+                            <div className="flex items-center justify-between border-b border-indigo-500/20 pb-2.5">
+                              <div>
+                                <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400 flex items-center gap-1.5">
+                                  <Eye className="w-3.5 h-3.5" /> PT Video Preview & Selection
+                                </span>
+                                <h5 className="text-white font-bold text-sm mt-0.5">{previewingOption.label}</h5>
+                              </div>
+                              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded font-bold">
+                                Form Demo
                               </span>
-                              <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded">Approve & Send</span>
                             </div>
-                            <p className="text-slate-400 text-xs mt-1 ml-5">{opt.expectedOutcome}</p>
-                          </button>
-                        ))}
+
+                            {/* Candidate Video Selector Tabs */}
+                            {previewingOption.candidateVideos && previewingOption.candidateVideos.length > 0 ? (
+                              <div className="space-y-3">
+                                <div>
+                                  <p className="text-xs text-slate-300 font-bold mb-1.5">Select from Top YouTube Shorts / Demos:</p>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {previewingOption.candidateVideos.map((vid, vIdx) => {
+                                      const isVidSelected = selectedCandidateVideo?.id === vid.id;
+                                      return (
+                                        <button
+                                          key={vid.id || vIdx}
+                                          onClick={() => setSelectedCandidateVideo(vid)}
+                                          className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 border ${
+                                            isVidSelected
+                                              ? 'bg-indigo-600 border-indigo-400 text-white shadow-md shadow-indigo-600/30'
+                                              : 'bg-slate-800/90 border-slate-700 text-slate-300 hover:text-white hover:border-slate-600'
+                                          }`}
+                                        >
+                                          <PlayCircle className="w-3.5 h-3.5 text-indigo-300" />
+                                          <span>Video {vIdx + 1}: {vid.creator}</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                {/* Active Preview Player */}
+                                {selectedCandidateVideo && (
+                                  <div className="space-y-2 bg-slate-950 p-3 rounded-xl border border-slate-800">
+                                    <div className="flex items-center justify-between text-xs">
+                                      <span className="text-white font-bold">{selectedCandidateVideo.title}</span>
+                                      <span className="text-indigo-400 font-mono text-[10px] bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                                        By {selectedCandidateVideo.creator}
+                                      </span>
+                                    </div>
+                                    <div className="rounded-xl overflow-hidden border border-slate-700 aspect-video bg-black shadow-inner">
+                                      <iframe
+                                        src={selectedCandidateVideo.embedUrl}
+                                        title={selectedCandidateVideo.title}
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowFullScreen
+                                        className="w-full h-full"
+                                      />
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 italic">
+                                      💡 <span className="font-semibold text-slate-300">Why AI Picked:</span> {selectedCandidateVideo.whyRecommended}
+                                    </p>
+                                  </div>
+                                )}
+
+                                {/* Approval Action Buttons */}
+                                <div className="flex flex-col sm:flex-row items-center gap-2 pt-2 border-t border-slate-800">
+                                  <button
+                                    onClick={() => handleApproveOption(previewingOption, selectedCandidateVideo)}
+                                    className="w-full sm:flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all"
+                                  >
+                                    <Check className="w-4 h-4" />
+                                    <span>Approve & Deploy Video to Patient</span>
+                                  </button>
+
+                                  <button
+                                    onClick={() => handleApproveOption(previewingOption, null)}
+                                    className="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 px-3 rounded-xl text-xs font-medium border border-slate-700 transition-all"
+                                  >
+                                    Deploy Text Only (Skip Video)
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                <p className="text-xs text-slate-400">No video attached for this drill.</p>
+                                <button
+                                  onClick={() => handleApproveOption(previewingOption, null)}
+                                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all"
+                                >
+                                  <Check className="w-4 h-4" />
+                                  <span>Approve Diagnostic Test</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <button onClick={() => updateDiagState({ status: 'idle', issueText: '' })} className="text-xs text-slate-500 hover:text-slate-300">← Start Over</button>
                     </div>
@@ -2040,6 +2637,34 @@ function ClientExerciseView({ roomState, dbConn, blueprints }: { roomState: Room
           </div>
           <p className="text-white font-bold">{clientDiagState.approvedOption.label}</p>
           <p className="text-slate-300 text-sm leading-relaxed">{clientDiagState.approvedOption.instruction}</p>
+
+          {/* PT Approved Demonstration Video */}
+          {clientDiagState.approvedOption.approvedVideo && (
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between text-xs text-indigo-300 font-medium">
+                <span className="flex items-center gap-1.5 font-bold">
+                  <PlayCircle className="w-4 h-4 text-indigo-400" />
+                  Form Video Selected by Your PT:
+                </span>
+                <span className="text-[10px] bg-indigo-500/20 px-2 py-0.5 rounded border border-indigo-500/30 text-indigo-200">
+                  {clientDiagState.approvedOption.approvedVideo.creator}
+                </span>
+              </div>
+              <div className="rounded-xl overflow-hidden border border-indigo-500/40 aspect-video bg-black shadow-lg">
+                <iframe
+                  src={clientDiagState.approvedOption.approvedVideo.embedUrl}
+                  title={clientDiagState.approvedOption.approvedVideo.title}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="w-full h-full"
+                />
+              </div>
+              <p className="text-[11px] text-slate-400 italic">
+                "{clientDiagState.approvedOption.approvedVideo.whyRecommended}"
+              </p>
+            </div>
+          )}
+
           <div className="space-y-2 pt-2 border-t border-indigo-500/30">
             <p className="text-xs text-slate-400 font-bold">After completing the test, tell us how it went:</p>
             <div className="flex gap-2">
