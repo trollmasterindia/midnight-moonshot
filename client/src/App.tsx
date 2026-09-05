@@ -610,7 +610,7 @@ function ClientView({ isConnected, dbConn, rooms }: { isConnected: boolean, dbCo
                     type="text"
                     value={inputName}
                     onChange={(e) => setInputName(e.target.value)}
-                    placeholder={`e.g. ${roomState.expectedClientName}`}
+                    placeholder="e.g. John Doe"
                     required
                     className="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm outline-none transition-all"
                   />
@@ -618,7 +618,7 @@ function ClientView({ isConnected, dbConn, rooms }: { isConnected: boolean, dbCo
 
                 {(roomState.clientStatus === 'DENIED' || verificationError) && (
                   <p className="text-xs text-rose-400 bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20">
-                    ⚠️ Name did not match expected client name for this link ({roomState.expectedClientName}). Please check spelling and try again.
+                    ⚠️ Name did not match our records for this link. Please check spelling and try again.
                   </p>
                 )}
 
@@ -749,14 +749,14 @@ function ClientView({ isConnected, dbConn, rooms }: { isConnected: boolean, dbCo
                   type="text"
                   value={inputName}
                   onChange={(e) => setInputName(e.target.value)}
-                  placeholder={`e.g. ${roomState.expectedClientName}`}
+                  placeholder="e.g. John Doe"
                   required
                   className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm outline-none transition-all text-center font-medium"
                 />
 
                 {verificationError && (
                   <p className="text-xs text-rose-400 bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20">
-                    ⚠️ Name did not match expected client name for this link ({roomState.expectedClientName}). Please try again.
+                    ⚠️ Name did not match our records for this link. Please try again.
                   </p>
                 )}
 
