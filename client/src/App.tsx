@@ -16,7 +16,7 @@ import {
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY || '';
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
 const GEMINI_MODEL = 'gemini-3.6-flash';
-const OPENAI_MODEL = 'gpt-4o';
+const OPENAI_MODEL = 'gpt-5-nano';
 
 async function callLLMDiagnostic(
   issueText: string,
