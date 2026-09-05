@@ -17,14 +17,19 @@ const spacetimedb = schema({
 export default spacetimedb;
 
 export const init = spacetimedb.init(ctx => {
-  // Seed initial room for POC: room_id="squat-diag-101", token="nipun-squat", pt="Dr. Smith", expected="Nipun"
-  ctx.db.room.insert({
-    roomId: 'squat-diag-101',
-    roomToken: 'nipun-squat',
-    ptName: 'Dr. Smith',
-    expectedClientName: 'Nipun',
-    submittedClientName: '',
-    clientStatus: 'NONE',
+  // Seed initial 5 rooms for POC
+  const clients = ['Nipun', 'Alex', 'Sarah', 'Mike', 'Emma'];
+  
+  clients.forEach((client, index) => {
+    const id = index + 1;
+    ctx.db.room.insert({
+      roomId: `squat-diag-10${id}`,
+      roomToken: `client-token-${id}`,
+      ptName: 'Dr. Smith',
+      expectedClientName: client,
+      submittedClientName: '',
+      clientStatus: 'NONE',
+    });
   });
 });
 

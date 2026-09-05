@@ -1,115 +1,151 @@
-# PhysioSync – Real-Time AI Tele-Rehab Room
+# PhysioSync – Real-Time AI Tele-Rehab Room & Multi-Client Matrix
 
 > **Target Platform:** SpaceTimeDB + WikiGem Diagnostic Engine  
 > **Demo Focus:** Squat Biomechanics & Diagnostic Interventions  
 > **Hackathon:** Midnight Moonshot  
+> **Live Deployment:** [https://physiosync-squat-poc.web.app/pt](https://physiosync-squat-poc.web.app/pt)  
+> **SpaceTimeDB Maincloud DB:** `thug-submission` (`wss://maincloud.spacetimedb.com`)
 
 ---
 
-## 💡 Executive Summary & Vision
+## ⚡ Current Status: POC 1 is 100% COMPLETE ✅
 
-**PhysioSync** is a real-time collaborative tele-rehab platform built for Physical Therapists (PTs) conducting online video consultations.
-
-Instead of relying on passive verbal feedback over standard video calls, the PT shares a private room link with the patient. Inside the live room (powered by **SpaceTimeDB**):
-- PTs assign exercises with rich visual demos.
-- PTs trigger **3D anatomical target overlays** directly on the client's screen.
-- Clients provide **real-time feedback** on muscle recruitment and pain locations.
-- **WikiGem's Diagnostic Engine** computes immediate, targeted corrective interventions for the PT to review, approve, and push to the client.
+All Phase 1 & POC 1 core requirements have been successfully built, deployed, and verified live on **SpaceTimeDB Maincloud** and **Firebase Hosting**.
 
 ---
 
-## 🎯 Problem Statement & Solution
+## 💡 Architecture & Setup Knowledge Base
 
-### The Problem
-Traditional tele-rehab consultations suffer from:
-1. **Verbal Confusion:** PTs struggle to explain form adjustments remotely without spatial visual cues.
-2. **Passive Client Experience:** Clients lack visual feedback on which muscles *should* be working vs. which *are* working.
-3. **Delayed Diagnostic Response:** PTs must manually compute corrective drills on the fly while managing the session.
-4. **Poor Scalability:** A PT can only monitor one client at a time without state synchronization tooling.
+*(Keep this section updated so anyone pulling this repo on a new laptop has full deployment and account context).*
 
-### The PhysioSync Solution
-1. **Zero-Friction Access:** No app store installs, accounts, or passwords. Instant web links.
-2. **Real-Time State Synchronization:** SpaceTimeDB handles sub-millisecond state sync between PT and client.
-3. **Visual Interactive Body Canvas:** Highlighting target muscles, stabilizer muscles, and precision pain markers.
-4. **WikiGem AI/Diagnostic Engine:** Automated decision tree detecting movement faults (e.g. dormant glutes, lower back pain, ankle tightness) and suggesting immediate fix protocols.
-5. **Multi-Client PT Matrix:** Scalable subscription grid enabling 1 PT to monitor up to 10 clients with real-time red alert badges on movement faults.
+### ☁️ Live Cloud Environment & Deployment Details
+
+- **Frontend Hosting:** Firebase Hosting ([Project Console](https://console.firebase.google.com/project/physiosync-squat-poc/overview))
+  - **Live URL:** [https://physiosync-squat-poc.web.app](https://physiosync-squat-poc.web.app)
+  - **Hosting Config:** `firebase.json` & `.firebaserc` in repository root.
+- **Backend Database:** SpaceTimeDB Maincloud
+  - **Server URI:** `wss://maincloud.spacetimedb.com`
+  - **Database Identity Name:** `thug-submission`
+  - **CLI binary path:** `~/.local/bin/spacetime`
 
 ---
 
-## 🏗️ Dual-Phase Architecture Overview
+## 🏗️ Core System Structure
 
 ```
-                               ┌─────────────────────────┐
-                               │  SpaceTimeDB Maincloud  │
-                               │  (Multi-Room State)     │
-                               └───────────┬─────────────┘
-                                           │
-          ┌────────────────────────────────┼────────────────────────────────┐
-          ▼                                ▼                                ▼
-┌──────────────────────┐        ┌──────────────────────┐        ┌──────────────────────┐
-│   Client 1 Room      │        │   Client 2 Room      │        │   Client 10 Room     │
-│ (Alex - Squatting)   │        │ (Sarah - Lunge)      │        │ (Chris - Deadlift)   │
-└──────────┬───────────┘        └──────────┬───────────┘        └──────────┬───────────┘
-           │                               │                               │
-           └───────────────────────────────┼───────────────────────────────┘
-                                           ▼
-                       ┌───────────────────────────────────────┐
-                       │     PT Multi-Client Dashboard         │
-                       │ - 2x5 Grid of 10 Active Clients       │
-                       │ - Real-time Red Alert Badges on Fault │
-                       │ - 1-Click Expand to Focus & Prescribe │
-                       └───────────────────────────────────────┘
+.
+├── client/                     # Vite + React + TypeScript + React Router DOM
+│   ├── src/
+│   │   ├── App.tsx             # Main Router (/pt, /pt/room/:roomId, /client/:roomToken)
+│   │   ├── module_bindings/    # Generated SpaceTimeDB client bindings
+│   │   └── main.tsx
+│   └── package.json
+│
+├── server/
+│   └── spacetimedb/            # SpaceTimeDB Rust module
+│       └── src/
+│           └── index.ts        # Room table definitions, init seeder, and reducers
+│
+├── firebase.json               # Firebase Hosting configuration (rewrites for SPA)
+└── .firebaserc                 # Project mapping (`physiosync-squat-poc`)
 ```
 
-- **Phase 1 (MVP - 1-on-1 Focus):** Powered by **SpaceTimeDB** real-time WebSockets for sub-millisecond state coordination between 1 PT and 1 Client (exercise selection, 3D anatomical overlays, muscle/pain feedback, and WikiGem prescription push).
-- **Phase 2 (PT Dashboard Matrix - 1 PT ↔ 10 Clients):** Leverages SpaceTimeDB WebSocket query subscriptions (`SELECT * FROM Room WHERE pt_name = ...`) streaming real-time alerts across up to 10 simultaneous patient rooms into a 2x5 PT matrix grid.
+---
+
+## 🗄️ SpaceTimeDB Backend Architecture (`server/spacetimedb`)
+
+### Data Model (`Room` Table)
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `roomId` | Primary Key (String) | Unique room ID (e.g. `squat-diag-101`) |
+| `roomToken` | Unique String | Secret client token URL identifier (e.g. `client-token-1`) |
+| `ptName` | String | Assigned Physio name |
+| `expectedClientName` | String | Patient name expected by PT (e.g. `Nipun`) |
+| `submittedClientName` | String | Name entered by client in mobile entry form |
+| `clientStatus` | String | Status: `"NONE"`, `"WAITING_APPROVAL"`, `"CONNECTED"` |
+
+### Reducers
+1. `requestRoomEntry({ roomToken, submittedName })`: Triggered by client mobile view. Validates room token and updates `clientStatus` to `"WAITING_APPROVAL"`.
+2. `approveClientEntry({ roomId, approve })`: Triggered by PT Supervisor. If `approve: true`, sets status to `"CONNECTED"`; if `false`, resets to `"NONE"`.
+3. `resetRoom({ roomId })`: Resets room back to initial state for testing.
+
+### Auto-Seeded Rooms (5 Concurrent Client Support)
+On startup, the server automatically seeds 5 distinct client rooms:
+1. `squat-diag-101` (Token: `client-token-1`, Expected Client: **Nipun**)
+2. `squat-diag-102` (Token: `client-token-2`, Expected Client: **Alex**)
+3. `squat-diag-103` (Token: `client-token-3`, Expected Client: **Sarah**)
+4. `squat-diag-104` (Token: `client-token-4`, Expected Client: **Mike**)
+5. `squat-diag-105` (Token: `client-token-5`, Expected Client: **Emma**)
 
 ---
 
-## ⚡ Tech Stack
+## 🎨 Frontend Application (`client`)
 
-- **State Database & Real-Time Sync:** [SpaceTimeDB](https://spacetimedb.com/) (Rust Module, Maincloud Deployed)
-- **Diagnostic Engine:** WikiGem Decision Tree (Rules Engine for Movement Biomechanics)
-- **Frontend Framework:** React / Vite / JavaScript + Tailwind CSS
-- **Interactive Visuals:** 3D / SVG Interactive Body Map (Target Muscle & Pain Location Overlay)
-
----
-
-## 📂 Project Documentation Directory
-
-Detailed specifications and architectural guides are stored in the `/docs` folder:
-
-- 📄 [PRD Specifications](file:///Users/nipunmehra/Midnight%20Moonshot/docs/PRD.md)
-- 📐 [System Architecture & Multi-Client Grid](file:///Users/nipunmehra/Midnight%20Moonshot/docs/ARCHITECTURE.md)
-- 🧠 [WikiGem Diagnostic Engine & Decision Trees](file:///Users/nipunmehra/Midnight%20Moonshot/docs/WIKIGEM_DIAGNOSTICS.md)
-- 🗄️ [SpaceTimeDB Rust/C# Database Schema & Reducers](file:///Users/nipunmehra/Midnight%20Moonshot/docs/DATABASE_SCHEMA.md)
-- ⏱️ [Hackathon Development & Demo Roadmap](file:///Users/nipunmehra/Midnight%20Moonshot/docs/HACKATHON_PLAN.md)
+### Routing Structure
+- `/pt`: **PT Dashboard Matrix** — Real-time monitoring grid displaying all 5 client rooms, statuses (`NONE`, `WAITING_APPROVAL`, `CONNECTED`), and client names synced over SpaceTimeDB WebSockets.
+- `/pt/room/:roomId`: **PT Live Supervisor Console** — Isolated room view with patient clinical history sidebar, dynamic client invitation link generator, and 1-click Approve / Deny entry buttons.
+- `/client/:roomToken`: **Client Mobile UI** — Dedicated client interface accessible strictly via secret token URL. Contains name verification, entry waiting screen, and muscle engagement interactive view.
 
 ---
 
-## 🚀 Quick Start & Demo Flow
+## 💻 New Laptop Setup & Deployment Guide
 
+### 1. Prerequisites
+- **Node.js**: v20+ and `npm`
+- **SpaceTimeDB CLI**: Installed at `~/.local/bin/spacetime`
+
+### 2. Running Locally
 ```bash
 # Clone the repository
 git clone https://github.com/trollmaster699/midnight-moonshot.git
 cd midnight-moonshot
 
-# (Development instructions will be added as frontend/backend components are built)
+# Install frontend dependencies
+cd client
+npm install
+npm run dev
+# App will run at http://localhost:5173/pt
 ```
 
-### Demo Script (Hackathon Demo Checklist)
-1. **PT Session Start & History View:** PT opens app, selects patient profile *"Alex"*, and reviews pre-loaded clinical history (past lumbar sprain, dormant glute notes) in the PT sidebar. PT clicks **"Start Room"**.
-2. **Personalized Link & PT Approval:** Client opens their secret link (`physiosync.app/room/alex-squat-8f92a`), enters name *"Alex"*, and enters Waiting Room. PT gets entry request modal -> Clicks **"Approve Entry"** -> Client screen unlocks into live room!
-3. **Exercise Assignment & Top Issues Digest:** PT selects **Squat** -> Client screen shows live Squat Demo GIF and Top 3 Form Pitfalls educational card.
-4. **Bi-Directional Anatomical Overlay:** Either Client or PT taps **"Highlight Target Muscles"** -> Body map animates Quads & Glutes.
-5. **Proactive Guided Cueing & Issue Surfacing:** System prompts Client post-set: *"Where did you feel the burn?"* -> Client taps `[ Quads Only ]` + `[ Lower Back Tightness ]` (surfacing issues even if client didn't know how to articulate them).
-6. **WikiGem Prescription:** PT dashboard gets alert + WikiGem suggestions (*3-Point Foot Contact Cue*, *Glute Bridge Primer*).
-7. **Approve & Push:** PT clicks **"Approve & Push"** -> Client screen immediately updates with visual fix card!
+### 3. Re-Publishing SpaceTimeDB to Maincloud
+```bash
+cd server/spacetimedb
+~/.local/bin/spacetime login
+~/.local/bin/spacetime publish --server maincloud -c thug-submission
+```
+
+### 4. Deploying Frontend Updates to Firebase
+```bash
+# From repository root
+cd client && npm run build && cd ..
+npx -y firebase-tools@latest deploy --only hosting --project physiosync-squat-poc
+```
 
 ---
 
-### 🔮 Next-Gen Scope: Gemini Multimodal Vision AI Pipeline
-*(If core development completes ahead of deadline)*
-- **Live Client Camera Sampling:** WebRTC HTML5 Canvas extracts 1 FPS webcam frames during exercise execution.
-- **Biomechanical Pose Diagnostics:** Streamed to Gemini 2.0 Flash Vision API to detect form faults in real-time (knee collapse, lumbar rounding).
-- **Auto-Surfaced Alert Badges:** Automatically surfaces **"AI Detected Potential Issue"** badges to both PT and Client!
+## ✅ POC 1 Checklist & Verification Summary
+
+| Feature Requirement | Status | Implementation Details |
+| :--- | :---: | :--- |
+| **SpaceTimeDB Integration** | ✅ Complete | Live WebSocket state synchronization over `wss://maincloud.spacetimedb.com`. |
+| **Isolated PT Dashboard** | ✅ Complete | Separate `/pt` dashboard grid showing all 5 active client rooms. No mode-toggle switches. |
+| **Multi-Client Support** | ✅ Complete | 5 pre-configured rooms with unique access tokens (`client-token-1` to `5`). |
+| **Token-Based Client Access** | ✅ Complete | Client view restricted strictly to `/client/:roomToken`. |
+| **Name Validation & Approval** | ✅ Complete | Client inputs name "Nipun"; PT gets real-time entry notification and approves entry. |
+| **Public Internet Access** | ✅ Complete | Deployed on Firebase Hosting + SpaceTimeDB Maincloud (accessible on cellular/5G). |
+
+---
+
+## 🚀 Proposal for POC 2 (Phase 2 Scope)
+
+Now that POC 1 is complete, we propose initiating **POC 2**:
+
+### 🎯 Key Goals for POC 2:
+1. **Multimodal AI Vision Stream (Gemini 2.0 Flash Vision)**:
+   - Sample client webcam frames (1 FPS) during squat execution.
+   - Stream frames to Gemini Vision API to detect movement faults in real-time (e.g. knee valgus collapse, shallow depth, excessive forward lean).
+2. **Proactive Issue Surfacing & Educational Cue Cards**:
+   - Surface top posture issues automatically to both PT dashboard and client screen without overwhelming the user.
+   - Interactive 3D / SVG Muscle Engagement Canvas allowing both PT and Client to trigger muscle focus maps.
+3. **WikiGem Prescription Engine Integration**:
+   - PT receives automated corrective drill recommendations based on AI-detected biomechanical issues and approves fixes to client in 1 click.
