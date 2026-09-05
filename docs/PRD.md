@@ -29,8 +29,17 @@ Instead of verbally explaining form tweaks over video calls, the PT shares a pri
 
 ## 3. Key Feature Specifications
 
+### Feature 0: Pre-Loaded Patient Clinical History & PT Session Start
+- **PT Dashboard:** PT selects a client record (e.g., *"Alex"*).
+- **Clinical Sidebar (PT View):** Loads pre-existing history directly inside the room UI:
+  - Past Injury Record (e.g., *"L4-L5 Lumbar Herniation, Right Ankle Sprain"*).
+  - Clinical Notes & Reminders (e.g., *"Glute activation latency; responds best to banded primers"*).
+  - Baseline Mobility Measurements (e.g., *"Ankle dorsiflexion restricted to 35°"*).
+  - Last Session Summary & Prescriptions.
+- **Session Initiation:** PT starts room `physiosync.app/room/squat-diag-101` linked to Alex's profile.
+
 ### Feature 1: Zero-Friction Room Entry
-- **PT Flow:** Generates room link (e.g., `physiosync.app/room/squat-diag-101`).
+- **PT Flow:** Generates and shares private room link (e.g., `physiosync.app/room/squat-diag-101`).
 - **Client Flow:** Opens URL, enters name (e.g., *"Alex"*), clicks **"Join Room"**. No passwords or registration required.
 
 ### Feature 2: Exercise Assignment & Video Demo

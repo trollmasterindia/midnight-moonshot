@@ -20,7 +20,8 @@
 
 ### Backend & SpaceTimeDB
 - [ ] Initialize SpaceTimeDB module project (Rust/C#).
-- [ ] Implement `Room`, `MovementLog`, `Prescription` tables.
+- [ ] Implement `Room`, `MovementLog`, `Prescription`, `ClientRecord` tables.
+- [ ] Seed pre-existing patient record data (Alex: past injuries, clinical notes, baseline mobility).
 - [ ] Write reducers: `join_room`, `select_exercise`, `toggle_muscle_overlay`, `submit_movement_log`, `approve_prescription`, `swap_exercise`.
 - [ ] Deploy module to SpaceTimeDB Maincloud.
 
@@ -32,6 +33,7 @@
 - [ ] Setup Vite + React + Tailwind CSS project skeleton.
 - [ ] Connect SpaceTimeDB WebSocket client SDK.
 - [ ] Build Zero-Friction Room Router (`/room/:roomId`).
+- [ ] Build PT Clinical History Sidebar (Displays pre-existing patient notes, past injuries, baseline mobility).
 - [ ] Build Exercise View (Video Demo / GIF loop).
 - [ ] Build Interactive SVG/3D Body Map canvas (Target Muscle Highlights & Pain Point Marker picker).
 - [ ] Build PT Supervisor View (Single Room focus & 2x5 Multi-Client Matrix Grid).
@@ -42,7 +44,7 @@
 
 ## 🎬 Mentors & Final Demo Script
 
-1. **PT Creates Room:** PT launches app and creates room `squat-diag-101`.
+1. **PT Session Start & History View:** PT opens app, selects patient profile *"Alex"*, and reviews pre-loaded clinical history (past lumbar sprain, dormant glute notes) in the PT sidebar. PT clicks **"Start Room"**.
 2. **Client Joins:** Client enters link on phone/laptop as "Alex" (no login).
 3. **Exercise Selected:** PT sets exercise to **Squat**.
 4. **Muscle Target Displayed:** PT toggles **Highlight Target Muscles** -> Client sees Quads & Glutes highlighted.

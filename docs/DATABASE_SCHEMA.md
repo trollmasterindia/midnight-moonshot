@@ -47,6 +47,17 @@ pub struct Prescription {
     pub media_url: String,
     pub status: String,        // "SUGGESTED", "APPROVED_BY_PT", "COMPLETED"
 }
+
+// 4. Pre-existing Patient History & Clinical Records
+#[spacetimedb(table)]
+pub struct ClientRecord {
+    #[primarykey]
+    pub client_name: String,   // e.g. "Alex"
+    pub past_injuries: String, // e.g. "L4-L5 Lumbar Herniation, Right Ankle Sprain"
+    pub clinical_notes: String,// e.g. "Glute activation latency; responds best to banded primers"
+    pub baseline_mobility: String, // e.g. "Ankle dorsiflexion restricted (35 deg)"
+    pub last_session_summary: String, // e.g. "Squat depth improved with heel wedge"
+}
 ```
 
 ---

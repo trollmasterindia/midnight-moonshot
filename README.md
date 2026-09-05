@@ -98,8 +98,8 @@ cd midnight-moonshot
 ```
 
 ### Demo Script (Hackathon Demo Checklist)
-1. **PT Room Creation:** PT opens app -> Clicks "Create Private Room".
-2. **Zero-Friction Client Join:** Client opens link on phone/laptop -> Enters name *"Alex"*.
+1. **PT Session Start & History View:** PT opens app, selects patient profile *"Alex"*, and reviews pre-loaded clinical history (past lumbar sprain, dormant glute notes) in the PT sidebar. PT clicks **"Start Room"**.
+2. **Zero-Friction Client Join:** Client opens shared link on phone/laptop -> Enters name *"Alex"* -> Joins instantly.
 3. **Exercise Assignment:** PT selects **Squat** -> Client screen shows live Squat Demo GIF.
 4. **Anatomical Overlay:** PT clicks **"Highlight Muscles"** -> Client body map animates Quads & Glutes.
 5. **Pain & Fault Logging:** Client logs *"Lower Back Pain"* + *"Glutes Not Felt"*.
