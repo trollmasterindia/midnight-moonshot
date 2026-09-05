@@ -502,11 +502,10 @@ function ClientView({ isConnected, dbConn, rooms }: { isConnected: boolean, dbCo
   
   const roomState = rooms.find(r => r.roomToken === roomToken);
 
-  // Auto-verify if user already submitted correct name or is connected
+  // Auto-verify if user is connected or waiting for approval
   useEffect(() => {
     if (!roomState) return;
-    const submittedMatch = roomState.submittedClientName && roomState.submittedClientName.trim().toLowerCase() === roomState.expectedClientName.toLowerCase();
-    if (roomState.clientStatus === 'CONNECTED' || roomState.clientStatus === 'WAITING_APPROVAL' || submittedMatch) {
+    if (roomState.clientStatus === 'CONNECTED' || roomState.clientStatus === 'WAITING_APPROVAL') {
       setIsVerified(true);
     }
   }, [roomState]);
