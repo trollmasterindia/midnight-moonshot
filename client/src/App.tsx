@@ -4,7 +4,8 @@ import { DbConnection } from './module_bindings';
 import { 
   Activity, ShieldCheck, UserCheck, Smartphone, 
   AlertCircle, CheckCircle2, Clock, Sparkles, QrCode, Send, UserX, Check, Users,
-  LogOut, FileText, Calendar, ClipboardList, CheckCircle, Copy, Search, Brain, ChevronRight
+  LogOut, FileText, Calendar, ClipboardList, CheckCircle, Copy, Search, Brain, ChevronRight,
+  Dumbbell, Play
 } from 'lucide-react';
 
 // -------------------------------------------------------
@@ -914,7 +915,26 @@ function PTDashboard({ rooms }: { rooms: RoomData[] }) {
 // -------------------------------------------------------// DiagnosticState shared between PT console and Client view via sessionStorage
 const DIAG_STATE_KEY = 'physiosync_diag_state';
 
+const squatExerciseTemplate = {
+  name: 'Bodyweight Squat',
+  videoUrl: 'https://www.youtube.com/embed/dW3zj79xfrc',
+  imageUrl: 'https://i0.wp.com/www.strengthlog.com/wp-content/uploads/2020/05/Squat-muscles-worked.png?resize=700%2C700&ssl=1',
+  commonIssues: [
+    { id: 'knee-valgus', title: 'Knees Collapsing Inward', icon: '🦵' },
+    { id: 'heel-lift', title: 'Heels Lifting Off Floor / Unable to keep back straight', icon: '🦶' },
+    { id: 'butt-wink', title: 'Lower Back Rounding', icon: '🍑' },
+    { id: 'no-depth', title: "Can't Reach Depth", icon: '⬇️' },
+    { id: 'back-pain', title: 'Lower Back Discomfort', icon: '🔴' },
+  ]
+};
+
 interface DiagnosticState {
+  assignedExercise: {
+    name: string;
+    videoUrl: string;
+    imageUrl: string;
+    commonIssues: { id: string; title: string; icon: string }[];
+  } | null;
   issueText: string;
   loggedBy: 'PT' | 'CLIENT';
   analysis: any | null;
@@ -938,10 +958,15 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
   // Diagnostic AI state synced over SpaceTimeDB via blueprint table
   const diagBlueprint = blueprints.find(b => b.roomId === roomState?.roomId && b.name === '__DIAGNOSTIC_STATE__');
   const [diagState, setDiagState] = useState<DiagnosticState>({
+    assignedExercise: null,
     issueText: '', loggedBy: 'PT', analysis: null, approvedOption: null,
     clientResult: '', autoLogResult: null, status: 'idle'
   });
   const [ptIssueInput, setPtIssueInput] = useState('');
+
+  const handleAssignExercise = (ex: typeof squatExerciseTemplate) => {
+    updateDiagState({ assignedExercise: ex });
+  };
 
   const activeBlueprint = blueprints.find(b => b.roomId === roomState?.roomId && b.isActiveDayPlan && b.name !== '__DIAGNOSTIC_STATE__');
   const activeBlueprintExercises = activeBlueprint ? blueprintExercises.filter(e => e.blueprintId === activeBlueprint.blueprintId).sort((a,b) => a.orderIndex - b.orderIndex) : [];
@@ -1003,9 +1028,12 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
       const remote = JSON.parse(diagBlueprint.targetGoal) as DiagnosticState;
       if (remote.status === 'needs_pt_analysis' && lastHandledIssueRef.current !== remote.issueText) {
         lastHandledIssueRef.current = remote.issueText;
-        handleLogIssue(remote.issueText, 'CLIENT');
+        setDiagState(remote);
+        handleLogIssue(remote.issueText, remote.loggedBy || 'CLIENT');
       } else if (remote.status === 'client_result_submitted' || (remote.clientResult && remote.clientResult !== diagState.clientResult)) {
         setDiagState(prev => ({ ...prev, clientResult: remote.clientResult, status: 'awaiting_client_result' }));
+      } else {
+        setDiagState(prev => ({ ...prev, ...remote }));
       }
     } catch {}
   }, [diagBlueprint?.targetGoal]);
@@ -1445,6 +1473,80 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
                   </div>
                 </div>
 
+                {/* ─── EXERCISE ASSIGNMENT STATUS ─── */}
+                {!diagState.assignedExercise ? (
+                  <div className="border-2 border-indigo-500/50 bg-indigo-950/40 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg shadow-indigo-950/50">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-indigo-500/20 p-3 rounded-xl border border-indigo-500/30 text-indigo-400">
+                        <Dumbbell className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] uppercase font-bold tracking-wider bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/30">Action Required</span>
+                          <span className="text-xs text-amber-300 font-medium">Patient waiting on screen</span>
+                        </div>
+                        <h4 className="text-white font-bold text-base mt-0.5">Assign Squat Exercise to Patient</h4>
+                        <p className="text-xs text-slate-300">Push instructional video, muscle anatomy, and issue tracking directly to patient's screen.</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleAssignExercise(squatExerciseTemplate)}
+                      className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-5 py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 transition-all shrink-0"
+                    >
+                      <Play className="w-4 h-4 fill-current" />
+                      <span>Assign Squat Exercise</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="border border-emerald-500/40 bg-emerald-950/20 rounded-xl p-3.5 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-emerald-500/20 p-2 rounded-lg text-emerald-400 border border-emerald-500/30">
+                        <Dumbbell className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">Active On Patient Screen</span>
+                          <span className="text-[10px] bg-emerald-500/10 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/20">Live</span>
+                        </div>
+                        <h4 className="text-white font-bold text-sm">{diagState.assignedExercise.name}</h4>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleAssignExercise(squatExerciseTemplate)}
+                      className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 transition-all shrink-0"
+                    >
+                      Re-push to Screen
+                    </button>
+                  </div>
+                )}
+
+                {/* ─── LIVE PATIENT FLAGGED ISSUE BANNER ─── */}
+                {diagState.issueText && (
+                  <div className="bg-amber-950/50 border-2 border-amber-500/60 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg shadow-amber-950/50">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="bg-amber-500 text-slate-950 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded">
+                          {diagState.loggedBy === 'CLIENT' ? '🚨 Live Issue Flagged by Patient' : 'Observed Issue'}
+                        </span>
+                        <span className="text-xs text-amber-300 font-mono">Real-time Sync</span>
+                      </div>
+                      <p className="text-white font-bold text-sm italic">"{diagState.issueText}"</p>
+                      {diagState.status === 'needs_pt_analysis' && (
+                        <p className="text-xs text-amber-200/90">The patient entered this manual issue on their screen. Click to generate AI diagnosis.</p>
+                      )}
+                    </div>
+                    {diagState.status === 'needs_pt_analysis' && (
+                      <button
+                        onClick={() => handleLogIssue(diagState.issueText, 'CLIENT')}
+                        className="w-full sm:w-auto bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20 shrink-0 transition-all"
+                      >
+                        <Brain className="w-4 h-4" />
+                        <span>Analyze with AI</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {/* ─── AI DIAGNOSTIC PANEL ─── */}
                 <div className="border border-indigo-500/30 bg-indigo-950/30 rounded-xl p-4 space-y-4">
                   <div className="flex items-center gap-2">
@@ -1756,19 +1858,6 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
 // Client Exercise View Sub-Component (for CONNECTED state)
 // -------------------------------------------------------------
 function ClientExerciseView({ roomState, dbConn, blueprints }: { roomState: RoomData, dbConn: DbConnection | null, blueprints: BlueprintData[] }) {
-  const squatExercise = {
-    name: 'Bodyweight Squat',
-    videoUrl: 'https://www.youtube.com/embed/dW3zj79xfrc',
-    imageUrl: 'https://i0.wp.com/www.strengthlog.com/wp-content/uploads/2020/05/Squat-muscles-worked.png?resize=700%2C700&ssl=1',
-    commonIssues: [
-      { id: 'knee-valgus', title: 'Knees Collapsing Inward', icon: '🦵' },
-      { id: 'heel-lift', title: 'Heels Lifting Off Floor / Unable to keep back straight', icon: '🦶' },
-      { id: 'butt-wink', title: 'Lower Back Rounding', icon: '🍑' },
-      { id: 'no-depth', title: "Can't Reach Depth", icon: '⬇️' },
-      { id: 'back-pain', title: 'Lower Back Discomfort', icon: '🔴' },
-    ]
-  };
-
   const [issueInput, setIssueInput] = useState('');
   const [submittedIssue, setSubmittedIssue] = useState('');
   const [clientResult, setClientResult] = useState('');
@@ -1815,6 +1904,8 @@ function ClientExerciseView({ roomState, dbConn, blueprints }: { roomState: Room
     syncDiagState({ clientResult, status: 'client_result_submitted' });
   };
 
+  const currentExercise = clientDiagState?.assignedExercise;
+
   return (
     <div className="flex flex-col gap-5">
       {/* Session Active Banner */}
@@ -1828,79 +1919,113 @@ function ClientExerciseView({ roomState, dbConn, blueprints }: { roomState: Room
         </div>
       </div>
 
-      {/* Exercise: Video */}
-      <div className="space-y-2">
-        <h3 className="text-white font-bold text-base">Today's Exercise: {squatExercise.name}</h3>
-        <div className="rounded-xl overflow-hidden border border-slate-700 aspect-video">
-          <iframe
-            src={squatExercise.videoUrl}
-            title="Exercise Form Video"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            className="w-full h-full"
-          />
-        </div>
-        <p className="text-xs text-slate-400">Watch the full video to learn proper form before starting.</p>
-      </div>
-
-      {/* Muscles + Common Issues */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <h4 className="text-slate-300 text-xs font-bold uppercase tracking-wider">Muscles Targeted</h4>
-          <div className="rounded-xl overflow-hidden border border-slate-700 bg-slate-900">
-            <img src={squatExercise.imageUrl} alt="Muscles worked in squat" className="w-full object-contain" />
+      {/* ─── CASE A: PT HAS NOT YET ASSIGNED EXERCISE ─── */}
+      {!currentExercise ? (
+        <div className="bg-slate-900/90 border border-indigo-500/30 rounded-2xl p-6 text-center space-y-4 shadow-xl">
+          <div className="w-16 h-16 bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto text-indigo-400 border border-indigo-500/30 animate-pulse">
+            <Dumbbell className="w-8 h-8" />
           </div>
-        </div>
-        <div className="space-y-2">
-          <h4 className="text-slate-300 text-xs font-bold uppercase tracking-wider">Common Issues (Tap to Flag)</h4>
           <div className="space-y-1.5">
-            {squatExercise.commonIssues.map(issue => (
-              <button
-                key={issue.id}
-                onClick={() => { setSubmittedIssue(''); handleClientLogIssue(issue.title); }}
-                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${
-                  submittedIssue === issue.title
-                    ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
-                    : 'bg-slate-900 border-slate-700 hover:border-amber-500/40 text-slate-300 hover:text-amber-300'
-                }`}
-              >
-                <span>{issue.icon}</span>
-                <span className="leading-tight">{issue.title}</span>
-                {submittedIssue === issue.title && <span className="ml-auto text-amber-400 shrink-0">✓</span>}
-              </button>
-            ))}
+            <h3 className="text-white font-bold text-lg">Waiting for Exercise Assignment</h3>
+            <p className="text-slate-400 text-xs max-w-sm mx-auto leading-relaxed">
+              Your physiotherapist, <span className="text-white font-semibold">{roomState.ptName}</span>, is setting up your exercise. Once assigned, your movement guide will appear here immediately.
+            </p>
           </div>
+          <div className="inline-flex items-center gap-2 bg-slate-800/80 px-3.5 py-1.5 rounded-full border border-slate-700 text-xs text-slate-300">
+            <Clock className="w-4 h-4 text-amber-400 animate-spin" />
+            <span>Standing by for PT...</span>
+          </div>
+        </div>
+      ) : (
+        /* ─── CASE B: EXERCISE ASSIGNED BY PT ─── */
+        <>
+          {/* Exercise: Video */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-white font-bold text-base">Assigned Exercise: {currentExercise.name}</h3>
+              <span className="text-[10px] uppercase font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                PT Prescribed
+              </span>
+            </div>
+            <div className="rounded-xl overflow-hidden border border-slate-700 aspect-video">
+              <iframe
+                src={currentExercise.videoUrl}
+                title="Exercise Form Video"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                className="w-full h-full"
+              />
+            </div>
+            <p className="text-xs text-slate-400">Watch the full video to learn proper form before starting.</p>
+          </div>
+
+          {/* Muscles + Common Issues */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <h4 className="text-slate-300 text-xs font-bold uppercase tracking-wider">Muscles Targeted</h4>
+              <div className="rounded-xl overflow-hidden border border-slate-700 bg-slate-900">
+                <img src={currentExercise.imageUrl} alt="Muscles worked in exercise" className="w-full object-contain" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <h4 className="text-slate-300 text-xs font-bold uppercase tracking-wider">Common Issues (Tap to Flag)</h4>
+              <div className="space-y-1.5">
+                {currentExercise.commonIssues.map(issue => (
+                  <button
+                    key={issue.id}
+                    onClick={() => { setSubmittedIssue(''); handleClientLogIssue(issue.title); }}
+                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${
+                      submittedIssue === issue.title
+                        ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                        : 'bg-slate-900 border-slate-700 hover:border-amber-500/40 text-slate-300 hover:text-amber-300'
+                    }`}
+                  >
+                    <span>{issue.icon}</span>
+                    <span className="leading-tight">{issue.title}</span>
+                    {submittedIssue === issue.title && <span className="ml-auto text-amber-400 shrink-0">✓</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ─── FREE TEXT MANUAL ISSUE LOGGING (ALWAYS AVAILABLE) ─── */}
+      <div className="space-y-2 pt-2 border-t border-slate-800">
+        <div className="flex items-center justify-between">
+          <h4 className="text-slate-300 text-xs font-bold uppercase tracking-wider">
+            {submittedIssue ? 'Add / Update Discomfort Note' : 'Describe Discomfort / Manual Issue'}
+          </h4>
+          <span className="text-[10px] text-indigo-400 font-medium">Visible to PT live</span>
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={issueInput}
+            onChange={e => setIssueInput(e.target.value)}
+            placeholder="e.g. Unable to keep back straight, knees shaking..."
+            className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs focus:border-amber-500/60 outline-none"
+            onKeyDown={e => { if (e.key === 'Enter' && issueInput.trim()) { handleClientLogIssue(issueInput); setIssueInput(''); } }}
+          />
+          <button
+            onClick={() => { if (issueInput.trim()) { handleClientLogIssue(issueInput); setIssueInput(''); } }}
+            disabled={!issueInput.trim()}
+            className="bg-amber-600 hover:bg-amber-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold disabled:opacity-50 flex items-center gap-1 shrink-0"
+          >
+            <Send className="w-3.5 h-3.5" />
+            <span>Send to PT</span>
+          </button>
         </div>
       </div>
-
-      {/* Free text issue logging */}
-      {!submittedIssue && (
-        <div className="space-y-2">
-          <h4 className="text-slate-300 text-xs font-bold uppercase tracking-wider">Describe Discomfort</h4>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={issueInput}
-              onChange={e => setIssueInput(e.target.value)}
-              placeholder="e.g. I feel tightness in my lower back..."
-              className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs focus:border-amber-500/60 outline-none"
-              onKeyDown={e => { if (e.key === 'Enter' && issueInput.trim()) { handleClientLogIssue(issueInput); setIssueInput(''); } }}
-            />
-            <button
-              onClick={() => { if (issueInput.trim()) { handleClientLogIssue(issueInput); setIssueInput(''); } }}
-              disabled={!issueInput.trim()}
-              className="bg-amber-600 hover:bg-amber-500 text-white px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-50"
-            >
-              <Send className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Flagged issue confirmation */}
       {submittedIssue && !clientDiagState?.approvedOption && (
-        <div className="bg-amber-950/30 border border-amber-500/40 rounded-xl p-3 space-y-1">
-          <p className="text-xs text-amber-400 font-bold">⚡ Issue Flagged – PT has been notified</p>
+        <div className="bg-amber-950/40 border border-amber-500/50 rounded-xl p-3 space-y-1">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-amber-400 font-bold">⚡ Issue Flagged – PT has been notified</p>
+            <span className="text-[10px] text-amber-300/80 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">Synced to PT Screen</span>
+          </div>
           <p className="text-slate-200 text-xs italic">"{submittedIssue}"</p>
           <p className="text-slate-400 text-xs">Your physiotherapist is analyzing and will send instructions shortly.</p>
         </div>
