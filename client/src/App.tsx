@@ -119,30 +119,39 @@ function PTDashboard({ dbConn, rooms }: { dbConn: DbConnection | null, rooms: Ro
                 <div className="flex justify-between items-start mb-3">
                   <h3 className="text-white font-semibold">Room: {room.roomId}</h3>
                   <span className={`text-xs px-2 py-1 rounded-full font-bold ${
-                    room.clientStatus === 'CONNECTED' ? 'bg-emerald-500/20 text-emerald-400' :
-                    room.clientStatus === 'WAITING_APPROVAL' ? 'bg-amber-500/20 text-amber-400 animate-pulse' :
-                    room.clientStatus === 'SESSION_ENDED' ? 'bg-indigo-500/20 text-indigo-400' :
-                    'bg-slate-800 text-slate-400'
+                    room.clientStatus === 'CONNECTED' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                    room.clientStatus === 'WAITING_APPROVAL' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse' :
+                    'bg-slate-800 text-slate-400 border border-slate-700'
                   }`}>
-                    {room.clientStatus === 'SESSION_ENDED' ? 'COMPLETED' : room.clientStatus}
+                    {room.clientStatus === 'CONNECTED' ? 'LIVE' :
+                     room.clientStatus === 'WAITING_APPROVAL' ? 'ACTION NEEDED' :
+                     'INACTIVE'}
                   </span>
                 </div>
                 <div className="text-sm text-slate-400 space-y-1">
                   <p>Expected Client: <span className="text-slate-200 font-medium">{room.expectedClientName}</span></p>
-                  {room.submittedClientName && <p>Submitted Name: <span className="text-indigo-300 font-medium">{room.submittedClientName}</span></p>}
+                  {(room.clientStatus === 'WAITING_APPROVAL' || room.clientStatus === 'DENIED') && room.submittedClientName && (
+                    <p>Submitted Name: <span className="text-amber-300 font-medium">{room.submittedClientName}</span></p>
+                  )}
                   <p>Room Token: <span className="font-mono text-xs">{room.roomToken}</span></p>
                 </div>
 
-                {/* Show last session notes if completed */}
-                {room.clientStatus === 'SESSION_ENDED' && (
-                  <div className="mt-3 bg-indigo-950/40 p-3 rounded-lg border border-indigo-500/30 text-xs">
-                    <p className="text-indigo-300 font-semibold flex items-center gap-1 mb-1">
-                      <Calendar className="w-3.5 h-3.5" />
-                      Last Session: {room.lastSessionTimestamp || 'Recently'}
+                {/* Subtext Area: Last session date & time and notes */}
+                {room.lastSessionTimestamp ? (
+                  <div className="mt-3 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800 text-xs">
+                    <p className="text-slate-400 font-medium flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                      Last Session: <span className="text-indigo-300">{room.lastSessionTimestamp}</span>
                     </p>
-                    <p className="text-slate-300 italic line-clamp-2">
-                      "{room.lastSessionNotes || 'No notes added'}"
-                    </p>
+                    {room.lastSessionNotes && (
+                      <p className="text-slate-400 italic line-clamp-2 mt-1">
+                        "{room.lastSessionNotes}"
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-3 text-xs text-slate-500 italic">
+                    No previous sessions logged
                   </div>
                 )}
               </div>
