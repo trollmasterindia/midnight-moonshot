@@ -325,13 +325,24 @@ function PTRoomView({ dbConn, rooms }: { dbConn: DbConnection | null, rooms: Roo
               </div>
 
               {!isEndingSession && (
-                <button
-                  onClick={() => setIsEndingSession(true)}
-                  className="flex items-center space-x-1.5 text-xs bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 px-3 py-1.5 rounded-lg font-semibold transition-all shadow-md shadow-rose-950/50"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>End Session</span>
-                </button>
+                roomState.clientStatus === 'CONNECTED' ? (
+                  <button
+                    onClick={() => setIsEndingSession(true)}
+                    className="flex items-center space-x-1.5 text-xs bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 px-3.5 py-2 rounded-xl font-bold transition-all shadow-md shadow-rose-950/50 cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>End Session</span>
+                  </button>
+                ) : (
+                  <button
+                    disabled
+                    title="Session must be active and connected before ending"
+                    className="flex items-center space-x-1.5 text-xs bg-slate-800/60 text-slate-500 border border-slate-800 px-3.5 py-2 rounded-xl font-medium cursor-not-allowed opacity-60"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>End Session (Not Started)</span>
+                  </button>
+                )
               )}
             </div>
 
