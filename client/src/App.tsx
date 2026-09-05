@@ -1611,6 +1611,14 @@ export const starterExercises: StarterExercise[] = [
 
 export const squatExerciseTemplate = starterExercises[0];
 
+export interface SetExecutionLog {
+  actualReps: number | string;
+  actualWeight: string;
+  actualTime: string;
+  completed: boolean;
+  loggedBy?: 'PT' | 'CLIENT';
+}
+
 interface DiagnosticState {
   assignedExercise: StarterExercise | null;
   issueText: string;
@@ -1619,6 +1627,7 @@ interface DiagnosticState {
   approvedOption: DiagnosticOption | null;
   clientResult: string;
   autoLogResult: any | null;
+  executionLog?: Record<string, SetExecutionLog[]>;
   status: 'idle' | 'needs_pt_analysis' | 'analyzing' | 'awaiting_pt_approval' | 'awaiting_client_result' | 'client_result_submitted' | 'auto_logging' | 'complete';
 }
 
@@ -1723,7 +1732,7 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
   const activeBlueprintExercises = activeBlueprint ? blueprintExercises.filter(e => e.blueprintId === activeBlueprint.blueprintId).sort((a,b) => a.orderIndex - b.orderIndex) : [];
   
   // executionLog maps exercise id to array of set performances
-  const [executionLog, setExecutionLog] = useState<Record<string, { actualReps: number, actualWeight: string, actualTime: string, completed: boolean }[]>>({});
+  const [executionLog, setExecutionLog] = useState<Record<string, SetExecutionLog[]>>({});
 
   if (!roomState) {
     return <div className="text-white p-6 text-center">Room not found or loading...</div>;
@@ -1777,6 +1786,9 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
     if (!diagBlueprint?.targetGoal) return;
     try {
       const remote = JSON.parse(diagBlueprint.targetGoal) as DiagnosticState;
+      if (remote.executionLog) {
+        setExecutionLog(prev => ({ ...prev, ...remote.executionLog }));
+      }
       if (remote.status === 'needs_pt_analysis' && lastHandledIssueRef.current !== remote.issueText) {
         lastHandledIssueRef.current = remote.issueText;
         setDiagState(remote);
@@ -1850,14 +1862,20 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
     }
   };
 
-  const updateExecutionSet = (exId: string, setIdx: number, field: string, value: any) => {
+  const updateExecutionSet = (exId: string, setIdx: number, field: string, value: any, loggedBy: 'PT' | 'CLIENT' = 'PT') => {
     setExecutionLog(prev => {
       const exLog = prev[exId] ? [...prev[exId]] : [];
       while(exLog.length <= setIdx) {
         exLog.push({ actualReps: 0, actualWeight: '', actualTime: '', completed: false });
       }
-      exLog[setIdx] = { ...exLog[setIdx], [field]: value };
-      return { ...prev, [exId]: exLog };
+      exLog[setIdx] = { ...exLog[setIdx], [field]: value, loggedBy };
+      const nextLog = { ...prev, [exId]: exLog };
+      const exObj = activeBlueprintExercises.find(e => e.id === exId);
+      if (exObj) {
+        nextLog[exObj.exerciseName] = exLog;
+      }
+      updateDiagState({ executionLog: nextLog });
+      return nextLog;
     });
   };
 
@@ -1865,8 +1883,8 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
     if (!dbConn) return;
     const timestamp = new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
     // Format execution log for DB
-    const executedExercises = activeBlueprintExercises.map(ex => {
-      const setsData = executionLog[ex.id] || [];
+    let executedExercises = activeBlueprintExercises.map(ex => {
+      const setsData = executionLog[ex.id] || executionLog[ex.exerciseName] || [];
       return {
         exerciseName: ex.exerciseName,
         isStaticHold: ex.isStaticHold,
@@ -1877,7 +1895,20 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
       };
     });
 
-    const completedExercisesJson = activeBlueprint ? JSON.stringify(executedExercises) : "[]";
+    if (executedExercises.length === 0 && diagState.assignedExercise) {
+      const exName = diagState.assignedExercise.name;
+      const setsData = executionLog[diagState.assignedExercise.id] || executionLog[exName] || [];
+      executedExercises = [{
+        exerciseName: exName,
+        isStaticHold: detectIsStaticHold(exName),
+        sets: Math.max(3, setsData.length),
+        reps: detectIsStaticHold(exName) ? 30 : 10,
+        weight: 'Bodyweight',
+        actualSets: setsData
+      }];
+    }
+
+    const completedExercisesJson = JSON.stringify(executedExercises);
 
     dbConn.reducers.endSession({
       roomId: roomState.roomId,
@@ -2718,35 +2749,50 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
                           
                           <div className="space-y-2">
                             {Array.from({ length: ex.sets }).map((_, setIdx) => {
-                              const setLog = setsData[setIdx] || { actualReps: 0, actualWeight: '', actualTime: '', completed: false };
+                              const setLog = setsData[setIdx] || { actualReps: ex.isStaticHold ? 0 : ex.reps, actualWeight: ex.weight || 'BW', actualTime: ex.isStaticHold ? String(ex.reps) : '', completed: false };
                               return (
-                                <div key={setIdx} className={`flex items-center gap-3 p-2 rounded ${setLog.completed ? 'bg-emerald-900/20 border border-emerald-800' : 'bg-slate-950 border border-slate-800'}`}>
+                                <div key={setIdx} className={`flex items-center gap-3 p-2.5 rounded-xl border transition-all flex-wrap ${setLog.completed ? 'bg-emerald-950/30 border-emerald-700/50' : 'bg-slate-950 border border-slate-800'}`}>
                                   <label className="flex items-center gap-2 cursor-pointer w-20">
                                     <input 
                                       type="checkbox" 
                                       checked={setLog.completed}
-                                      onChange={(e) => updateExecutionSet(ex.id, setIdx, 'completed', e.target.checked)}
-                                      className="rounded bg-slate-900 border-slate-700 text-emerald-500"
+                                      onChange={(e) => updateExecutionSet(ex.id, setIdx, 'completed', e.target.checked, 'PT')}
+                                      className="rounded bg-slate-900 border-slate-700 text-emerald-500 w-4 h-4 cursor-pointer"
                                     />
-                                    <span className="text-xs text-slate-300">Set {setIdx + 1}</span>
+                                    <span className="text-xs font-bold text-slate-200">Set {setIdx + 1}</span>
                                   </label>
                                   
-                                  <input 
-                                    type="number"
-                                    placeholder={ex.isStaticHold ? "Time (s)" : "Reps"}
-                                    value={ex.isStaticHold ? setLog.actualTime : setLog.actualReps}
-                                    onChange={(e) => updateExecutionSet(ex.id, setIdx, ex.isStaticHold ? 'actualTime' : 'actualReps', e.target.value)}
-                                    disabled={setLog.completed}
-                                    className="w-20 bg-slate-900 border border-slate-700 rounded p-1 text-white text-xs disabled:opacity-50"
-                                  />
-                                  <input 
-                                    type="text"
-                                    placeholder="Weight"
-                                    value={setLog.actualWeight}
-                                    onChange={(e) => updateExecutionSet(ex.id, setIdx, 'actualWeight', e.target.value)}
-                                    disabled={setLog.completed}
-                                    className="w-24 bg-slate-900 border border-slate-700 rounded p-1 text-white text-xs disabled:opacity-50"
-                                  />
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] text-slate-400 uppercase font-bold">{ex.isStaticHold ? 'Sec:' : 'Reps:'}</span>
+                                    <input 
+                                      type="number"
+                                      placeholder={ex.isStaticHold ? `${ex.reps}s` : `${ex.reps}`}
+                                      value={ex.isStaticHold ? setLog.actualTime : setLog.actualReps}
+                                      onChange={(e) => updateExecutionSet(ex.id, setIdx, ex.isStaticHold ? 'actualTime' : 'actualReps', e.target.value, 'PT')}
+                                      className="w-16 bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-center text-white text-xs font-bold focus:border-indigo-500 outline-none"
+                                    />
+                                  </div>
+
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] text-slate-400 uppercase font-bold">Weight:</span>
+                                    <input 
+                                      type="text"
+                                      placeholder={ex.weight || "BW"}
+                                      value={setLog.actualWeight}
+                                      onChange={(e) => updateExecutionSet(ex.id, setIdx, 'actualWeight', e.target.value, 'PT')}
+                                      className="w-24 bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-white text-xs font-bold focus:border-indigo-500 outline-none"
+                                    />
+                                  </div>
+
+                                  {setLog.loggedBy && (
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full border font-mono ml-auto ${
+                                      setLog.loggedBy === 'CLIENT' 
+                                        ? 'bg-amber-500/15 border-amber-500/40 text-amber-300' 
+                                        : 'bg-indigo-500/15 border-indigo-500/40 text-indigo-300'
+                                    }`}>
+                                      {setLog.loggedBy === 'CLIENT' ? 'Patient Logged ✓' : 'PT Logged'}
+                                    </span>
+                                  )}
                                 </div>
                               );
                             })}
@@ -2825,13 +2871,22 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
                               <span className="text-slate-400 font-bold block mb-2 text-sm">Completed Exercises:</span>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                 {exercises.map((ex, exIdx) => (
-                                  <div key={exIdx} className="bg-slate-950 p-2.5 rounded border border-slate-800">
+                                  <div key={exIdx} className="bg-slate-950 p-2.5 rounded border border-slate-800 space-y-1.5">
                                     <div className="flex justify-between font-bold text-slate-200 text-xs">
                                       <span>{exIdx + 1}. {ex.exerciseName}</span>
                                       <span className="text-indigo-400">{ex.sets}x{ex.reps} {ex.isStaticHold ? '(Hold)' : ''}</span>
                                     </div>
                                     {ex.weight && ex.weight !== 'BW' && (
-                                      <p className="text-slate-400 text-[10px] mt-1">Weight: {ex.weight}</p>
+                                      <p className="text-slate-400 text-[10px]">Target Weight: {ex.weight}</p>
+                                    )}
+                                    {ex.actualSets && ex.actualSets.length > 0 && (
+                                      <div className="pt-1 flex flex-wrap gap-1.5">
+                                        {ex.actualSets.map((s: any, sIdx: number) => (
+                                          <span key={sIdx} className={`text-[10px] px-2 py-0.5 rounded border font-mono ${s.completed ? 'bg-emerald-950/40 border-emerald-800 text-emerald-300' : 'bg-slate-900 border-slate-800 text-slate-400'}`}>
+                                            Set {sIdx + 1}: {ex.isStaticHold ? `${s.actualTime || s.actualReps}s` : `${s.actualReps} reps`} @ {s.actualWeight || 'BW'} {s.completed ? '✓' : ''}
+                                          </span>
+                                        ))}
+                                      </div>
                                     )}
                                   </div>
                                 ))}
@@ -2929,6 +2984,34 @@ function ClientExerciseView({
   const currentPlanExIndex = currentExercise 
     ? planExercises.findIndex(e => e.exerciseName.toLowerCase() === currentExercise.name.toLowerCase()) 
     : -1;
+
+  const activePlanEx = currentPlanExIndex >= 0 ? planExercises[currentPlanExIndex] : null;
+  const activeExId = activePlanEx?.id || currentExercise?.id || 'active-ex';
+  const targetSets = activePlanEx?.sets || 3;
+  const targetReps = activePlanEx?.reps || 10;
+  const targetWeight = activePlanEx?.weight || 'Bodyweight';
+  const isStaticHold = activePlanEx?.isStaticHold ?? (currentExercise ? detectIsStaticHold(currentExercise.name) : false);
+
+  const clientExecutionLog: Record<string, SetExecutionLog[]> = clientDiagState?.executionLog || {};
+  const setsData = clientExecutionLog[activeExId] || (activePlanEx ? clientExecutionLog[activePlanEx.exerciseName] : []) || [];
+
+  const updateClientExecutionSet = (setIdx: number, field: string, value: any) => {
+    const currentLog = setsData.length > 0 ? [...setsData] : [];
+    while (currentLog.length <= setIdx) {
+      currentLog.push({ 
+        actualReps: isStaticHold ? 0 : targetReps, 
+        actualWeight: targetWeight, 
+        actualTime: isStaticHold ? String(targetReps) : '', 
+        completed: false 
+      });
+    }
+    currentLog[setIdx] = { ...currentLog[setIdx], [field]: value, loggedBy: 'CLIENT' };
+    const nextLog = { ...clientExecutionLog, [activeExId]: currentLog };
+    if (activePlanEx?.exerciseName) {
+      nextLog[activePlanEx.exerciseName] = currentLog;
+    }
+    syncDiagState({ executionLog: nextLog });
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -3057,6 +3140,130 @@ function ClientExerciseView({
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
+
+          {/* ─── LIVE SET & REP LOGGER (PATIENT & PT SYNCED) ─── */}
+          <div className="bg-slate-900/90 border border-indigo-500/30 rounded-2xl p-4 space-y-3.5 shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <div className="flex items-center gap-2">
+                <Dumbbell className="w-4 h-4 text-indigo-400" />
+                <h4 className="text-white font-bold text-xs uppercase tracking-wider">
+                  Log Your Sets & Weight
+                </h4>
+              </div>
+              <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-medium flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Syncing Live with PT
+              </span>
+            </div>
+
+            <p className="text-[11px] text-slate-400">
+              Target Prescription: <span className="text-indigo-300 font-semibold">{targetSets} sets × {targetReps} {isStaticHold ? 'sec hold' : 'reps'} @ {targetWeight}</span>
+            </p>
+
+            <div className="space-y-2.5">
+              {Array.from({ length: targetSets }).map((_, setIdx) => {
+                const setLog = setsData[setIdx] || { 
+                  actualReps: isStaticHold ? 0 : targetReps, 
+                  actualWeight: targetWeight, 
+                  actualTime: isStaticHold ? String(targetReps) : '', 
+                  completed: false,
+                  loggedBy: undefined
+                };
+
+                return (
+                  <div 
+                    key={setIdx} 
+                    className={`p-3 rounded-xl border transition-all flex flex-col gap-2.5 ${
+                      setLog.completed 
+                        ? 'bg-emerald-950/30 border-emerald-500/40 ring-1 ring-emerald-500/20' 
+                        : 'bg-slate-950/80 border-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
+                          setLog.completed ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300'
+                        }`}>
+                          {setLog.completed ? '✓' : setIdx + 1}
+                        </span>
+                        <span className="text-xs font-bold text-white">Set {setIdx + 1}</span>
+                        {setLog.loggedBy && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded font-mono bg-slate-800 text-slate-400 border border-slate-700">
+                            Logged by {setLog.loggedBy === 'CLIENT' ? 'You' : 'PT'}
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => updateClientExecutionSet(setIdx, 'completed', !setLog.completed)}
+                        className={`text-xs px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+                          setLog.completed 
+                            ? 'bg-emerald-500 text-slate-950 shadow-sm' 
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                        }`}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>{setLog.completed ? 'Completed' : 'Mark Done'}</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      {/* Actual Reps or Hold Time */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase font-bold text-slate-400 block">
+                          {isStaticHold ? 'Time Held (Sec)' : 'Actual Reps'}
+                        </label>
+                        <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const currentVal = Number(isStaticHold ? setLog.actualTime : setLog.actualReps) || 0;
+                              const newVal = Math.max(0, currentVal - 1);
+                              updateClientExecutionSet(setIdx, isStaticHold ? 'actualTime' : 'actualReps', newVal);
+                            }}
+                            className="px-2.5 py-1.5 text-slate-400 hover:text-white hover:bg-slate-800 text-xs font-bold"
+                          >
+                            -
+                          </button>
+                          <input
+                            type="number"
+                            value={isStaticHold ? (setLog.actualTime ?? targetReps) : (setLog.actualReps ?? targetReps)}
+                            onChange={(e) => updateClientExecutionSet(setIdx, isStaticHold ? 'actualTime' : 'actualReps', e.target.value)}
+                            className="w-full bg-transparent text-center text-white text-xs font-bold focus:outline-none p-1"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const currentVal = Number(isStaticHold ? setLog.actualTime : setLog.actualReps) || 0;
+                              updateClientExecutionSet(setIdx, isStaticHold ? 'actualTime' : 'actualReps', currentVal + 1);
+                            }}
+                            className="px-2.5 py-1.5 text-slate-400 hover:text-white hover:bg-slate-800 text-xs font-bold"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Actual Weight */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase font-bold text-slate-400 block">
+                          Weight / Load
+                        </label>
+                        <input
+                          type="text"
+                          placeholder={targetWeight || "e.g. 10kg, BW"}
+                          value={setLog.actualWeight}
+                          onChange={(e) => updateClientExecutionSet(setIdx, 'actualWeight', e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs font-bold focus:border-indigo-500 outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </>
@@ -3409,13 +3616,22 @@ function ClientView({
                                 Assigned Exercises
                               </h4>
                               {exercises.map((ex, exIdx) => (
-                                <div key={exIdx} className="bg-slate-900 p-2.5 rounded border border-slate-800 space-y-1">
+                                <div key={exIdx} className="bg-slate-900 p-2.5 rounded border border-slate-800 space-y-1.5">
                                   <div className="flex justify-between font-bold text-slate-200 text-xs">
                                     <span>{exIdx + 1}. {ex.exerciseName}</span>
                                     <span className="text-indigo-400">{ex.sets} sets x {ex.reps} reps {ex.isStaticHold ? '(Hold)' : ''}</span>
                                   </div>
                                   {ex.weight && ex.weight !== 'BW' && (
-                                    <p className="text-slate-400 text-[10px]">• Weight: {ex.weight}</p>
+                                    <p className="text-slate-400 text-[10px]">• Target Weight: {ex.weight}</p>
+                                  )}
+                                  {ex.actualSets && ex.actualSets.length > 0 && (
+                                    <div className="pt-1 flex flex-wrap gap-1.5">
+                                      {ex.actualSets.map((s: any, sIdx: number) => (
+                                        <span key={sIdx} className={`text-[10px] px-2 py-0.5 rounded border font-mono ${s.completed ? 'bg-emerald-950/40 border-emerald-800 text-emerald-300' : 'bg-slate-950 border-slate-800 text-slate-400'}`}>
+                                          Set {sIdx + 1}: {ex.isStaticHold ? `${s.actualTime || s.actualReps}s` : `${s.actualReps} reps`} @ {s.actualWeight || 'BW'} {s.completed ? '✓' : ''}
+                                        </span>
+                                      ))}
+                                    </div>
                                   )}
                                 </div>
                               ))}
