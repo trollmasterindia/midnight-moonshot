@@ -1,11 +1,112 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Routes, Route, useNavigate, useParams, Link } from 'react-router-dom';
 import { DbConnection } from './module_bindings';
 import { 
   Activity, ShieldCheck, UserCheck, Smartphone, 
   AlertCircle, CheckCircle2, Clock, Sparkles, QrCode, Send, UserX, Check, Users,
-  LogOut, FileText, Calendar, ClipboardList, CheckCircle, Copy
+  LogOut, FileText, Calendar, ClipboardList, CheckCircle, Copy, Search, Brain, ChevronRight
 } from 'lucide-react';
+
+// -------------------------------------------------------
+// Gemini API Integration (free Gemini 1.5 Flash)
+// -------------------------------------------------------
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
+const GEMINI_MODEL = 'gemini-1.5-flash-latest';
+
+async function callGeminiDiagnostic(issueText: string, clientName: string, clientGoal: string): Promise<{ potentialCause: string; confidence: string; ptOptions: { id: string; label: string; instruction: string; expectedOutcome: string }[]; outOfScope?: string }> {
+  const systemPrompt = `You are WikiGem, a biomechanics AI assistant for physiotherapists. You use a clinical decision tree to diagnose movement issues and prescribe diagnostic tests.
+
+Client: ${clientName}
+Client Goal: ${clientGoal}
+Client History: Needs monitoring for biomechanics during squat variations.
+
+Your diagnostic tree for squat issues:
+- CASE A (Glute Not Engaged / Quad Dominance): Prescribe foot 3-point contact cue, banded squats, glute bridge activation.
+- CASE B (Depth Limitation / Heel Lifting / Back Not Straight / Torso Collapse): Run Diagnostic Test 1 = Heel-Elevated Squat (if depth improves -> Ankle Mobility issue). Run Diagnostic Test 2 = Thomas Test (if tight hip flexors -> Hip Mobility issue).
+- CASE C (Lower Back Pain / Discomfort): Prescribe Primer Triad: Glute Activation + Core Deadbugs + Hamstring Bridge. Check for pelvic tilt / butt wink.
+- If issue is completely outside these cases, explain you found related research from extended web knowledge (for demo pitch).
+
+Respond ONLY in this JSON format (no markdown):
+{
+  "potentialCause": "Short paragraph explaining the most likely biomechanical cause",
+  "confidence": "High / Medium / Low",
+  "ptOptions": [
+    { "id": "opt1", "label": "Option Label (e.g. Heel-Elevated Squat Test)", "instruction": "What to tell the client to do step by step", "expectedOutcome": "What outcome confirms this diagnosis" },
+    { "id": "opt2", "label": "Option Label 2", "instruction": "...", "expectedOutcome": "..." }
+  ],
+  "outOfScope": "If the issue is totally outside the tree, put a note here, otherwise leave empty"
+}`;
+
+  const userPrompt = `Client reported issue: "${issueText}"
+
+Analyze this and provide diagnostic options according to your WikiGem tree.`;
+
+  try {
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        generationConfig: { temperature: 0.3, responseMimeType: 'application/json' }
+      })
+    });
+    const data = await resp.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    return JSON.parse(text);
+  } catch (e) {
+    console.error('Gemini API error:', e);
+    // Fallback demo response
+    return {
+      potentialCause: 'Based on the reported issue, the most likely cause is limited ankle dorsiflexion mobility preventing full squat depth, possibly combined with tight hip flexors. Both can cause compensatory heel lifting and forward trunk lean.',
+      confidence: 'High',
+      ptOptions: [
+        { id: 'opt1', label: 'Heel-Elevated Squat Test (Ankle Mobility)', instruction: 'Place small weight plates or a folded mat under both heels (approx 2cm elevation). Re-attempt the squat to full depth. Focus on keeping chest up.', expectedOutcome: 'If depth significantly improves with heels elevated, confirms ankle mobility restriction.' },
+        { id: 'opt2', label: 'Thomas Test (Hip Flexor Assessment)', instruction: 'Lie on edge of table. Pull both knees to chest, then lower one leg down. Observe if the lowered leg stays flat or knee bends past 90°.', expectedOutcome: 'If hip flexor is tight, the leg will not stay flat - confirms hip mobility as the primary restrictor.' }
+      ]
+    };
+  }
+}
+
+async function callGeminiAutoLog(issue: string, approvedOption: string, clientResult: string, clientName: string): Promise<{ patientLogNote: string; suggestedExercise: string; suggestedExerciseSets: number; suggestedExerciseReps: number; conclusion: string }> {
+  const prompt = `You are WikiGem, a biomechanics AI. Generate a clinical patient log entry and exercise recommendation based on the following diagnostic session outcome:
+
+Client: ${clientName}
+Issue Logged: ${issue}
+Diagnostic Test Approved by PT: ${approvedOption}
+Client Result / Feedback: ${clientResult}
+
+Respond ONLY in this JSON format (no markdown):
+{
+  "conclusion": "One sentence root cause conclusion (e.g. Ankle mobility restriction confirmed)",
+  "patientLogNote": "Professional clinical note 2-3 sentences for patient record",
+  "suggestedExercise": "Name of corrective exercise to add to blueprint",
+  "suggestedExerciseSets": 3,
+  "suggestedExerciseReps": 30
+}`;
+
+  try {
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.2, responseMimeType: 'application/json' }
+      })
+    });
+    const data = await resp.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    return JSON.parse(text);
+  } catch (e) {
+    return {
+      conclusion: 'Ankle mobility restriction confirmed as primary limiting factor.',
+      patientLogNote: `${clientName} demonstrated significantly improved squat depth with heel elevation, confirming ankle dorsiflexion restriction. Hip flexor assessment ruled out as primary cause. Ankle mobility stretching protocol added to session blueprint.`,
+      suggestedExercise: 'Ankle Dorsiflexion Stretch (Knee-to-Wall)',
+      suggestedExerciseSets: 3,
+      suggestedExerciseReps: 45
+    };
+  }
+}
 
 interface RoomData {
   roomId: string;
@@ -18,10 +119,53 @@ interface RoomData {
   lastSessionTimestamp?: string;
 }
 
+interface SessionHistoryData {
+  logId: string;
+  roomId: string;
+  timestamp: string;
+  notes: string;
+  completedExercisesJson: string;
+}
+
+interface BlueprintData {
+  blueprintId: string;
+  roomId: string;
+  name: string;
+  targetGoal: string;
+  isActiveDayPlan: boolean;
+}
+
+interface BlueprintExerciseData {
+  id: string;
+  blueprintId: string;
+  exerciseName: string;
+  warmupFor: string;
+  sets: number;
+  reps: number;
+  weight: string;
+  isStaticHold: boolean;
+  orderIndex: number;
+}
+
+interface ExerciseDictionaryData {
+  exerciseId: string;
+  name: string;
+  category: string;
+  targetMuscle: string;
+  description: string;
+  videoUrl: string;
+  imageUrl: string;
+  commonIssuesJson: string;
+}
+
 // Custom hook to manage SpaceTimeDB connection
 function useSpaceTimeDB() {
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [rooms, setRooms] = useState<RoomData[]>([]);
+  const [sessionHistory, setSessionHistory] = useState<SessionHistoryData[]>([]);
+  const [blueprints, setBlueprints] = useState<BlueprintData[]>([]);
+  const [blueprintExercises, setBlueprintExercises] = useState<BlueprintExerciseData[]>([]);
+  const [exerciseDictionary, setExerciseDictionary] = useState<ExerciseDictionaryData[]>([]);
   const [dbConn, setDbConn] = useState<DbConnection | null>(null);
 
   useEffect(() => {
@@ -49,29 +193,380 @@ function useSpaceTimeDB() {
 
       setDbConn(conn);
 
-      const updateRooms = () => {
-        setRooms(Array.from(conn.db.room.iter()));
+      const updateRooms = () => setRooms(Array.from(conn.db.room.iter()));
+      const updateSessionHistory = () => setSessionHistory(Array.from(conn.db.sessionHistory.iter()));
+      const updateBlueprints = () => {
+        setBlueprints(Array.from(conn.db.blueprint.iter()));
+        setBlueprintExercises(Array.from(conn.db.blueprintExercise.iter()));
       };
+      const updateExerciseDictionary = () => setExerciseDictionary(Array.from((conn.db as any).exerciseDictionary.iter()));
 
       conn.subscriptionBuilder()
         .onApplied(() => {
           updateRooms();
+          updateSessionHistory();
+          updateBlueprints();
+          updateExerciseDictionary();
         })
-        .subscribe(['SELECT * FROM room']);
+        .subscribe(['SELECT * FROM room', 'SELECT * FROM session_history', 'SELECT * FROM blueprint', 'SELECT * FROM blueprint_exercise', 'SELECT * FROM exercise_dictionary']);
 
       conn.db.room.onInsert(updateRooms);
       conn.db.room.onUpdate(updateRooms);
       conn.db.room.onDelete(updateRooms);
+      
+      conn.db.sessionHistory.onInsert(updateSessionHistory);
+      conn.db.sessionHistory.onUpdate(updateSessionHistory);
+      conn.db.sessionHistory.onDelete(updateSessionHistory);
 
-      return () => {
-        conn.disconnect();
-      };
+      conn.db.blueprint.onInsert(updateBlueprints);
+      conn.db.blueprint.onUpdate(updateBlueprints);
+      conn.db.blueprint.onDelete(updateBlueprints);
+      
+      conn.db.blueprintExercise.onInsert(updateBlueprints);
+      conn.db.blueprintExercise.onUpdate(updateBlueprints);
+      conn.db.blueprintExercise.onDelete(updateBlueprints);
+
+      return () => conn.disconnect();
     } catch (err) {
       console.error('Failed to initialize SpaceTimeDB connection:', err);
     }
   }, []);
 
-  return { isConnected, rooms, dbConn };
+  return { isConnected, rooms, sessionHistory, blueprints, blueprintExercises, exerciseDictionary, dbConn };
+}
+
+// -------------------------------------------------------------
+// AI Blueprint Planner Modal
+// -------------------------------------------------------------
+function AIPlannerModal({ 
+  isOpen, 
+  onClose, 
+  roomId, 
+  dbConn 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  roomId: string;
+  dbConn: DbConnection | null;
+}) {
+  const [prompt, setPrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedBlueprint, setGeneratedBlueprint] = useState<any>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+
+  if (!isOpen) return null;
+
+  const handleGenerate = () => {
+    if (!prompt.trim()) return;
+    setIsGenerating(true);
+    setWarning(null);
+    setGeneratedBlueprint(null);
+
+    // Simulate AI delay
+    setTimeout(() => {
+      const lowerPrompt = prompt.toLowerCase();
+      let newBlueprint: any = {
+        name: "AI Generated Session",
+        targetGoal: prompt,
+        exercises: []
+      };
+
+      if (lowerPrompt.includes("plyometric") || lowerPrompt.includes("force")) {
+        if (lowerPrompt.includes("heavy") || lowerPrompt.includes("lifting")) {
+          setWarning("Goal Alignment Reminder: User goal is plyometrics/force generation but prompt suggests heavy lifting. The plan has been adjusted to emphasize power over maximal strength.");
+        }
+        newBlueprint.name = "Plyometric Power Phase";
+        newBlueprint.exercises = [
+          { exerciseName: "Box Jump", sets: 4, reps: 5, weight: "Bodyweight", isStaticHold: false },
+          { exerciseName: "Lateral Bound (Skater)", sets: 3, reps: 8, weight: "Bodyweight", isStaticHold: false },
+          { exerciseName: "Push Press", sets: 4, reps: 6, weight: "Moderate", isStaticHold: false },
+        ];
+      } else if (lowerPrompt.includes("tendon") || lowerPrompt.includes("isometric")) {
+        setWarning("Client faced issues with this exercise earlier due to weak tendon. Added tendon strengthening isometric exercises this week.");
+        newBlueprint.name = "Tendon Rehab & Strengthening";
+        newBlueprint.exercises = [
+          { exerciseName: "Bodyweight Squat", sets: 3, reps: 45, weight: "Bodyweight", isStaticHold: true, orderIndex: 0 },
+          { exerciseName: "Calf Raises", sets: 3, reps: 30, weight: "Bodyweight", isStaticHold: true, orderIndex: 1 },
+          { exerciseName: "Straight Leg Raise", sets: 3, reps: 15, weight: "Light", isStaticHold: false, orderIndex: 2 }
+        ];
+      } else {
+        newBlueprint.name = "General Hypertrophy";
+        newBlueprint.exercises = [
+          { exerciseName: "Barbell Back Squat", sets: 4, reps: 10, weight: "70%", isStaticHold: false },
+          { exerciseName: "Romanian Deadlift (RDL)", sets: 3, reps: 12, weight: "60%", isStaticHold: false },
+          { exerciseName: "Leg Extension", sets: 3, reps: 15, weight: "Moderate", isStaticHold: false }
+        ];
+      }
+      
+      // Ensure exercises have orderIndex and ID
+      newBlueprint.exercises = newBlueprint.exercises.map((ex: any, idx: number) => ({
+        ...ex,
+        orderIndex: idx,
+        id: `gen-${Date.now()}-${idx}`
+      }));
+
+      setGeneratedBlueprint(newBlueprint);
+      setIsGenerating(false);
+    }, 2000);
+  };
+
+  const handleSave = () => {
+    if (!dbConn || !generatedBlueprint) return;
+    
+    dbConn.reducers.saveBlueprint({
+      blueprintId: `bp-${Date.now()}`,
+      roomId,
+      name: generatedBlueprint.name,
+      targetGoal: generatedBlueprint.targetGoal,
+      isActiveDayPlan: false,
+      exercisesJson: JSON.stringify(generatedBlueprint.exercises)
+    });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-indigo-400" />
+            <h2 className="text-xl font-bold text-white">AI Blueprint Planner</h2>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-white">
+            <UserX className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 flex-1 overflow-y-auto">
+          {!generatedBlueprint && !isGenerating && (
+            <div className="space-y-4">
+              <p className="text-slate-300">Describe the client's long-term goals and any specific focuses for this phase.</p>
+              <textarea 
+                className="w-full h-32 bg-slate-800 border border-slate-700 rounded-lg p-4 text-white focus:outline-none focus:border-indigo-500 transition-colors resize-none"
+                placeholder="e.g. 'Build a plyometric focused session, client has weak tendons so keep lifting light...'"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+              />
+              <button 
+                onClick={handleGenerate}
+                disabled={!prompt.trim()}
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+              >
+                <Sparkles className="w-4 h-4" />
+                Generate Blueprint
+              </button>
+            </div>
+          )}
+
+          {isGenerating && (
+            <div className="flex flex-col items-center justify-center py-12 space-y-4">
+              <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-indigo-400 font-medium animate-pulse">WikiGem AI is analyzing goals and formulating blueprint...</p>
+            </div>
+          )}
+
+          {generatedBlueprint && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              {warning && (
+                <div className="bg-amber-900/40 border border-amber-700/50 rounded-lg p-4 flex gap-3 items-start">
+                  <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-amber-200 text-sm leading-relaxed">{warning}</p>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <ClipboardList className="w-5 h-5 text-indigo-400" />
+                  {generatedBlueprint.name}
+                </h3>
+                <div className="space-y-2">
+                  {generatedBlueprint.exercises.map((ex: any, idx: number) => (
+                    <div key={idx} className="bg-slate-800/80 rounded-lg p-3 flex justify-between items-center border border-slate-700/50">
+                      <div>
+                        <p className="font-medium text-slate-200">{ex.exerciseName}</p>
+                        <p className="text-xs text-slate-400">
+                          {ex.isStaticHold ? `${ex.reps} seconds hold` : `${ex.sets} sets × ${ex.reps} reps`} 
+                          {ex.weight && ` @ ${ex.weight}`}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {generatedBlueprint && (
+          <div className="px-6 py-4 border-t border-slate-800 bg-slate-800/50 flex justify-end gap-3">
+            <button 
+              onClick={() => { setGeneratedBlueprint(null); setWarning(null); }}
+              className="px-4 py-2 text-slate-300 hover:text-white transition-colors"
+            >
+              Discard & Retry
+            </button>
+            <button 
+              onClick={handleSave}
+              className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg flex items-center gap-2 transition-colors"
+            >
+              <CheckCircle className="w-4 h-4" />
+              Save Blueprint
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// -------------------------------------------------------------
+// Blueprint Editor Modal (with exercise search)
+// -------------------------------------------------------------
+function BlueprintEditorModal({
+  isOpen,
+  onClose,
+  blueprint,
+  exercises,
+  exerciseDictionary,
+  dbConn
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  blueprint: BlueprintData | null;
+  exercises: BlueprintExerciseData[];
+  exerciseDictionary: ExerciseDictionaryData[];
+  dbConn: DbConnection | null;
+}) {
+  const [editedExercises, setEditedExercises] = useState<any[]>([]);
+  const [searchTerms, setSearchTerms] = useState<Record<number, string>>({});
+  const [showDropdown, setShowDropdown] = useState<Record<number, boolean>>({});
+
+  useEffect(() => {
+    if (blueprint && exercises) {
+      setEditedExercises(exercises.map(ex => ({ ...ex })));
+    }
+  }, [blueprint, exercises]);
+
+  if (!isOpen || !blueprint) return null;
+
+  const handleSave = () => {
+    if (!dbConn) return;
+    dbConn.reducers.saveBlueprint({
+      blueprintId: blueprint.blueprintId,
+      roomId: blueprint.roomId,
+      name: blueprint.name,
+      targetGoal: blueprint.targetGoal,
+      isActiveDayPlan: blueprint.isActiveDayPlan,
+      exercisesJson: JSON.stringify(editedExercises)
+    });
+    onClose();
+  };
+
+  const addExercise = () => {
+    setEditedExercises(prev => [...prev, { id: `new-${Date.now()}`, exerciseName: '', sets: 3, reps: 10, weight: 'BW', isStaticHold: false, orderIndex: prev.length }]);
+  };
+
+  const updateExercise = (index: number, field: string, value: any) => {
+    const newExs = [...editedExercises];
+    newExs[index] = { ...newExs[index], [field]: value };
+    setEditedExercises(newExs);
+  };
+
+  const getFilteredExercises = (term: string) => {
+    if (!term || term.length < 2) return [];
+    return exerciseDictionary.filter(e => e.name.toLowerCase().includes(term.toLowerCase())).slice(0, 8);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            <ClipboardList className="w-5 h-5 text-indigo-400" />
+            Edit Blueprint: {blueprint.name}
+          </h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-white"><UserX className="w-6 h-6" /></button>
+        </div>
+
+        <div className="p-6 flex-1 overflow-y-auto space-y-4">
+          {editedExercises.sort((a,b) => a.orderIndex - b.orderIndex).map((ex, idx) => (
+            <div key={ex.id || idx} className="bg-slate-800 p-4 rounded-lg border border-slate-700">
+              {/* Exercise name with search */}
+              <div className="relative mb-3">
+                <label className="block text-xs text-slate-400 mb-1">Exercise Name</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                  <input 
+                    type="text" 
+                    value={searchTerms[idx] !== undefined ? searchTerms[idx] : ex.exerciseName}
+                    onChange={(e) => {
+                      setSearchTerms(prev => ({ ...prev, [idx]: e.target.value }));
+                      setShowDropdown(prev => ({ ...prev, [idx]: true }));
+                    }}
+                    onBlur={() => setTimeout(() => setShowDropdown(prev => ({ ...prev, [idx]: false })), 200)}
+                    placeholder="Search exercises..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded pl-9 pr-3 py-2 text-white text-sm"
+                  />
+                </div>
+                {showDropdown[idx] && getFilteredExercises(searchTerms[idx] || '').length > 0 && (
+                  <div className="absolute top-full left-0 right-0 z-10 bg-slate-800 border border-slate-700 rounded-lg mt-1 shadow-xl overflow-hidden">
+                    {getFilteredExercises(searchTerms[idx] || '').map(dictEx => (
+                      <button
+                        key={dictEx.exerciseId}
+                        onClick={() => {
+                          updateExercise(idx, 'exerciseName', dictEx.name);
+                          setSearchTerms(prev => ({ ...prev, [idx]: dictEx.name }));
+                          setShowDropdown(prev => ({ ...prev, [idx]: false }));
+                        }}
+                        className="w-full text-left px-4 py-2.5 hover:bg-slate-700 flex justify-between items-center"
+                      >
+                        <span className="text-white text-sm">{dictEx.name}</span>
+                        <span className="text-xs text-slate-400">{dictEx.category} · {dictEx.targetMuscle}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-3 items-center flex-wrap">
+                <div className="w-16">
+                  <label className="block text-xs text-slate-400 mb-1">Sets</label>
+                  <input type="number" value={ex.sets} onChange={(e) => updateExercise(idx, 'sets', parseInt(e.target.value) || 0)} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-sm" />
+                </div>
+                <div className="w-20">
+                  <label className="block text-xs text-slate-400 mb-1">{ex.isStaticHold ? 'Time (s)' : 'Reps'}</label>
+                  <input type="number" value={ex.reps} onChange={(e) => updateExercise(idx, 'reps', parseInt(e.target.value) || 0)} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-sm" />
+                </div>
+                <div className="w-28">
+                  <label className="block text-xs text-slate-400 mb-1">Weight</label>
+                  <input type="text" value={ex.weight} onChange={(e) => updateExercise(idx, 'weight', e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-sm" />
+                </div>
+                <div className="flex items-center pt-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={ex.isStaticHold} onChange={(e) => updateExercise(idx, 'isStaticHold', e.target.checked)} className="rounded bg-slate-900 border-slate-700 text-indigo-500" />
+                    <span className="text-xs text-slate-300">Time-Based</span>
+                  </label>
+                </div>
+                <button onClick={() => setEditedExercises(prev => prev.filter((_, i) => i !== idx))} className="text-rose-400 hover:text-rose-300 text-xs pt-4">Remove</button>
+              </div>
+            </div>
+          ))}
+          <button onClick={addExercise} className="w-full py-2 border border-dashed border-slate-700 rounded-lg text-slate-400 hover:text-slate-200 hover:border-slate-500 text-sm transition-colors">+ Add Exercise</button>
+        </div>
+
+        <div className="px-6 py-4 border-t border-slate-800 bg-slate-800/50 flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-slate-300 hover:text-white transition-colors">Cancel</button>
+          <button onClick={handleSave} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg flex items-center gap-2 transition-colors">
+            <CheckCircle className="w-4 h-4" />
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // -------------------------------------------------------------
@@ -197,14 +692,42 @@ function PTDashboard({ rooms }: { rooms: RoomData[] }) {
 
 // -------------------------------------------------------------
 // PT Room View Component
-// -------------------------------------------------------------
-function PTRoomView({ dbConn, rooms }: { dbConn: DbConnection | null, rooms: RoomData[] }) {
+// -------------------------------------------------------// DiagnosticState shared between PT console and Client view via sessionStorage
+const DIAG_STATE_KEY = 'physiosync_diag_state';
+
+interface DiagnosticState {
+  issueText: string;
+  loggedBy: 'PT' | 'CLIENT';
+  analysis: any | null;
+  approvedOption: any | null;
+  clientResult: string;
+  autoLogResult: any | null;
+  status: 'idle' | 'analyzing' | 'awaiting_pt_approval' | 'awaiting_client_result' | 'auto_logging' | 'complete';
+}
+
+function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExercises, exerciseDictionary }: { dbConn: DbConnection | null, rooms: RoomData[], sessionHistory: SessionHistoryData[], blueprints: BlueprintData[], blueprintExercises: BlueprintExerciseData[], exerciseDictionary: ExerciseDictionaryData[] }) {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const roomState = rooms.find(r => r.roomId === roomId);
   const [isEndingSession, setIsEndingSession] = useState<boolean>(false);
   const [notesInput, setNotesInput] = useState<string>('');
   const [copiedBanner, setCopiedBanner] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<'console' | 'history' | 'planner'>('console');
+  const [isAIPlannerOpen, setIsAIPlannerOpen] = useState(false);
+  const [editingBlueprint, setEditingBlueprint] = useState<BlueprintData | null>(null);
+  
+  // Diagnostic AI state
+  const [diagState, setDiagState] = useState<DiagnosticState>({
+    issueText: '', loggedBy: 'PT', analysis: null, approvedOption: null,
+    clientResult: '', autoLogResult: null, status: 'idle'
+  });
+  const [ptIssueInput, setPtIssueInput] = useState('');
+
+  const activeBlueprint = blueprints.find(b => b.roomId === roomState?.roomId && b.isActiveDayPlan);
+  const activeBlueprintExercises = activeBlueprint ? blueprintExercises.filter(e => e.blueprintId === activeBlueprint.blueprintId).sort((a,b) => a.orderIndex - b.orderIndex) : [];
+  
+  // executionLog maps exercise id to array of set performances
+  const [executionLog, setExecutionLog] = useState<Record<string, { actualReps: number, actualWeight: string, actualTime: string, completed: boolean }[]>>({});
 
   if (!roomState) {
     return <div className="text-white p-6 text-center">Room not found or loading...</div>;
@@ -215,14 +738,131 @@ function PTRoomView({ dbConn, rooms }: { dbConn: DbConnection | null, rooms: Roo
     dbConn.reducers.approveClientEntry({ roomId: roomState.roomId, approve });
   };
 
+  const handleSetActivePlan = (blueprint: BlueprintData) => {
+    if (!dbConn) return;
+    // We could unset others, but the saveBlueprint reducer will just update this one.
+    // In a real app we'd unset the others first. For the POC, we just update this one to true.
+    const exs = blueprintExercises.filter(e => e.blueprintId === blueprint.blueprintId);
+    dbConn.reducers.saveBlueprint({
+      blueprintId: blueprint.blueprintId,
+      roomId: blueprint.roomId,
+      name: blueprint.name,
+      targetGoal: blueprint.targetGoal,
+      isActiveDayPlan: true,
+      exercisesJson: JSON.stringify(exs)
+    });
+  };
+
+  // Persist diag state to sessionStorage so ClientView can read it
+  const updateDiagState = (partial: Partial<DiagnosticState>) => {
+    setDiagState(prev => {
+      const next = { ...prev, ...partial };
+      try { sessionStorage.setItem(DIAG_STATE_KEY + '_' + roomId, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
+  // Read client result from sessionStorage (polled)
+  const diagStateRef = useRef(diagState);
+  diagStateRef.current = diagState;
+  useEffect(() => {
+    if (diagState.status !== 'awaiting_client_result') return;
+    const interval = setInterval(() => {
+      try {
+        const raw = sessionStorage.getItem(DIAG_STATE_KEY + '_' + roomId);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed.clientResult && parsed.clientResult !== diagStateRef.current.clientResult) {
+            setDiagState(parsed);
+          }
+        }
+      } catch {}
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [diagState.status, roomId]);
+
+  const handleLogIssue = async (issueText: string, loggedBy: 'PT' | 'CLIENT') => {
+    if (!issueText.trim()) return;
+    updateDiagState({ issueText, loggedBy, status: 'analyzing', analysis: null, approvedOption: null, clientResult: '', autoLogResult: null });
+    setActiveTab('console');
+    const result = await callGeminiDiagnostic(issueText, roomState?.expectedClientName || 'Client', 'Squat Rehab / Biomechanics Improvement');
+    updateDiagState({ analysis: result, status: 'awaiting_pt_approval' });
+  };
+
+  const handleApproveOption = async (option: any) => {
+    updateDiagState({ approvedOption: option, status: 'awaiting_client_result' });
+  };
+
+  const handleAutoLog = async () => {
+    if (!diagState.approvedOption || !diagState.clientResult.trim()) return;
+    updateDiagState({ status: 'auto_logging' });
+    const result = await callGeminiAutoLog(
+      diagState.issueText, 
+      diagState.approvedOption.label,
+      diagState.clientResult,
+      roomState?.expectedClientName || 'Client'
+    );
+    updateDiagState({ autoLogResult: result, status: 'complete' });
+    
+    // Auto-update blueprint
+    if (dbConn && roomState) {
+      const bpId = activeBlueprint?.blueprintId || `bp-diag-${Date.now()}`;
+      const existingExs = activeBlueprintExercises.map(e => ({...e}));
+      const newEx = {
+        id: `diag-${Date.now()}`,
+        exerciseName: result.suggestedExercise,
+        warmupFor: '',
+        sets: result.suggestedExerciseSets,
+        reps: result.suggestedExerciseReps,
+        weight: 'Bodyweight',
+        isStaticHold: result.suggestedExerciseReps > 20,
+        orderIndex: existingExs.length
+      };
+      dbConn.reducers.saveBlueprint({
+        blueprintId: bpId,
+        roomId: roomState.roomId,
+        name: activeBlueprint?.name || 'Diagnostic Session Plan',
+        targetGoal: activeBlueprint?.targetGoal || 'Squat Rehab',
+        isActiveDayPlan: true,
+        exercisesJson: JSON.stringify([...existingExs, newEx])
+      });
+    }
+  };
+
+  const updateExecutionSet = (exId: string, setIdx: number, field: string, value: any) => {
+    setExecutionLog(prev => {
+      const exLog = prev[exId] ? [...prev[exId]] : [];
+      while(exLog.length <= setIdx) {
+        exLog.push({ actualReps: 0, actualWeight: '', actualTime: '', completed: false });
+      }
+      exLog[setIdx] = { ...exLog[setIdx], [field]: value };
+      return { ...prev, [exId]: exLog };
+    });
+  };
+
   const handleConfirmEndSession = () => {
     if (!dbConn) return;
     const timestamp = new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+    // Format execution log for DB
+    const executedExercises = activeBlueprintExercises.map(ex => {
+      const setsData = executionLog[ex.id] || [];
+      return {
+        exerciseName: ex.exerciseName,
+        isStaticHold: ex.isStaticHold,
+        sets: ex.sets, // planned sets
+        reps: ex.reps, // planned reps/time
+        weight: ex.weight, // planned weight
+        actualSets: setsData
+      };
+    });
+
+    const completedExercisesJson = activeBlueprint ? JSON.stringify(executedExercises) : "[]";
+
     dbConn.reducers.endSession({
       roomId: roomState.roomId,
-      notes: notesInput.trim() || 'Client completed squat rehab protocol. Good form stability.',
+      notes: notesInput.trim() || 'Client completed session protocol.',
       timestamp: timestamp,
-      completedExercisesJson: "[]",
+      completedExercisesJson: completedExercisesJson,
     });
     setIsEndingSession(false);
     navigate('/pt');
@@ -316,10 +956,124 @@ function PTRoomView({ dbConn, rooms }: { dbConn: DbConnection | null, rooms: Roo
 
         {/* Right Column (2 cols): PT Live Supervisor Console OR End Session Form */}
         <div className="lg:col-span-2 flex flex-col gap-6">
+          {/* PT Navigation Tabs */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveTab('console')}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center space-x-2 ${
+                activeTab === 'console' ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 border border-slate-800 hover:bg-slate-800'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>Live Console</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center space-x-2 ${
+                activeTab === 'history' ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 border border-slate-800 hover:bg-slate-800'
+              }`}
+            >
+              <Calendar className="w-4 h-4" />
+              <span>Session History</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('planner')}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center space-x-2 ${
+                activeTab === 'planner' ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 border border-slate-800 hover:bg-slate-800'
+              }`}
+            >
+              <ClipboardList className="w-4 h-4" />
+              <span>Session Planner</span>
+            </button>
+          </div>
+
           <div className="glass-panel p-6 rounded-2xl border border-slate-800 flex flex-col gap-6">
             
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+            {activeTab === 'planner' && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+                  <div>
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                      <ClipboardList className="w-5 h-5 text-indigo-400" />
+                      Client Session Planner
+                    </h2>
+                    <p className="text-xs text-slate-400 mt-1">Manage and generate blueprints for {roomState.expectedClientName}.</p>
+                  </div>
+                  <button 
+                    onClick={() => setIsAIPlannerOpen(true)}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-indigo-600/20 flex items-center gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Create AI Blueprint
+                  </button>
+                </div>
+
+                <div className="grid gap-4">
+                  {blueprints.filter(b => b.roomId === roomState.roomId).length === 0 ? (
+                    <div className="text-center py-10 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
+                      <ClipboardList className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                      <p className="text-slate-400 text-sm">No blueprints saved for this client yet.</p>
+                      <p className="text-xs text-slate-500 mt-1">Use the AI Planner to generate one.</p>
+                    </div>
+                  ) : (
+                    blueprints.filter(b => b.roomId === roomState.roomId).map(bp => {
+                      const exCount = blueprintExercises.filter(e => e.blueprintId === bp.blueprintId).length;
+                      return (
+                        <div key={bp.blueprintId} className="bg-slate-800/60 rounded-xl p-4 border border-slate-700 flex justify-between items-center group">
+                          <div>
+                            <h3 className="text-white font-bold text-sm flex items-center gap-2">
+                              {bp.name}
+                              {bp.isActiveDayPlan && <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/30 uppercase tracking-wider">Active Day Plan</span>}
+                            </h3>
+                            <p className="text-xs text-slate-400 mt-1">Goal: {bp.targetGoal}</p>
+                            <p className="text-xs text-indigo-300 mt-1">{exCount} exercises</p>
+                          </div>
+                          <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                              onClick={() => setEditingBlueprint(bp)}
+                              className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg border border-slate-600"
+                            >
+                              Edit Exercises
+                            </button>
+                            {!bp.isActiveDayPlan && (
+                              <button 
+                                onClick={() => handleSetActivePlan(bp)}
+                                className="text-xs bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 px-3 py-1.5 rounded-lg border border-emerald-500/30"
+                              >
+                                Set as Active Plan
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* The AI Planner Modal Component */}
+                <AIPlannerModal 
+                  isOpen={isAIPlannerOpen} 
+                  onClose={() => setIsAIPlannerOpen(false)} 
+                  roomId={roomState.roomId}
+                  dbConn={dbConn}
+                />
+
+                {/* Blueprint Editor Modal */}
+                <BlueprintEditorModal
+                  isOpen={!!editingBlueprint}
+                  onClose={() => setEditingBlueprint(null)}
+                  blueprint={editingBlueprint}
+                  exercises={editingBlueprint ? blueprintExercises.filter(e => e.blueprintId === editingBlueprint.blueprintId) : []}
+                  exerciseDictionary={exerciseDictionary}
+                  dbConn={dbConn}
+                />
+              </div>
+            )}
+
+            {activeTab === 'console' && (
+              <>
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div>
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <ShieldCheck className="w-5 h-5 text-indigo-400" />
@@ -329,7 +1083,6 @@ function PTRoomView({ dbConn, rooms }: { dbConn: DbConnection | null, rooms: Roo
               </div>
 
               {!isEndingSession && (
-                roomState.clientStatus === 'CONNECTED' ? (
                   <button
                     onClick={() => setIsEndingSession(true)}
                     className="flex items-center space-x-1.5 text-xs bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 px-3.5 py-2 rounded-xl font-bold transition-all shadow-md shadow-rose-950/50 cursor-pointer"
@@ -337,16 +1090,6 @@ function PTRoomView({ dbConn, rooms }: { dbConn: DbConnection | null, rooms: Roo
                     <LogOut className="w-3.5 h-3.5" />
                     <span>End Session</span>
                   </button>
-                ) : (
-                  <button
-                    disabled
-                    title="Session must be active and connected before ending"
-                    className="flex items-center space-x-1.5 text-xs bg-slate-800/60 text-slate-500 border border-slate-800 px-3.5 py-2 rounded-xl font-medium cursor-not-allowed opacity-60"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                    <span>End Session (Not Started)</span>
-                  </button>
-                )
               )}
             </div>
 
@@ -373,8 +1116,15 @@ function PTRoomView({ dbConn, rooms }: { dbConn: DbConnection | null, rooms: Roo
                       Exercises Completed
                     </h4>
                     <ul className="space-y-1.5 text-slate-300">
-                      <li>• Bodyweight Squats (3 sets x 10 reps)</li>
-                      <li>• Glute Activation Bridges</li>
+                      {activeBlueprintExercises.length > 0 ? activeBlueprintExercises.map(ex => {
+                        const completedCount = (executionLog[ex.id] || []).filter(s => s.completed).length;
+                        if (completedCount === 0) return null;
+                        return (
+                          <li key={ex.id}>• {ex.exerciseName} ({completedCount} sets completed)</li>
+                        );
+                      }) : (
+                        <li>• No blueprint exercises logged.</li>
+                      )}
                     </ul>
                   </div>
 
@@ -466,11 +1216,202 @@ function PTRoomView({ dbConn, rooms }: { dbConn: DbConnection | null, rooms: Roo
                   </div>
                 </div>
 
-                <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
-                  <div>
-                    <span className="text-slate-400 block mb-1">Active Exercise Assigned</span>
-                    <span className="text-white font-bold text-sm">Squat Biomechanics & Diagnostic Screen</span>
+                {/* ─── AI DIAGNOSTIC PANEL ─── */}
+                <div className="border border-indigo-500/30 bg-indigo-950/30 rounded-xl p-4 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Brain className="w-5 h-5 text-indigo-400" />
+                    <h4 className="text-white font-bold text-sm">AI Diagnostic Console</h4>
+                    <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30">WikiGem Engine</span>
                   </div>
+
+                  {diagState.status === 'idle' && (
+                    <div className="space-y-3">
+                      <p className="text-xs text-slate-400">Log an issue observed during the session. The AI will analyze it and suggest diagnostic steps.</p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={ptIssueInput}
+                          onChange={e => setPtIssueInput(e.target.value)}
+                          placeholder="e.g. Client cannot reach depth, heels lifting..."
+                          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs focus:border-indigo-500 outline-none"
+                          onKeyDown={e => e.key === 'Enter' && handleLogIssue(ptIssueInput, 'PT')}
+                        />
+                        <button
+                          onClick={() => handleLogIssue(ptIssueInput, 'PT')}
+                          disabled={!ptIssueInput.trim()}
+                          className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
+                        >
+                          <Brain className="w-3.5 h-3.5" />
+                          Analyze
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {diagState.status === 'analyzing' && (
+                    <div className="flex items-center gap-3 py-2">
+                      <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                      <div>
+                        <p className="text-indigo-300 text-sm font-bold">WikiGem AI analyzing biomechanics...</p>
+                        <p className="text-xs text-slate-400">Cross-referencing diagnostic tree for: "{diagState.issueText}"</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {diagState.status === 'awaiting_pt_approval' && diagState.analysis && (
+                    <div className="space-y-3">
+                      <div className="bg-slate-900/80 rounded-lg p-3 border border-slate-700">
+                        <p className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1">Issue Reported</p>
+                        <p className="text-slate-200 text-sm italic">"{diagState.issueText}"</p>
+                      </div>
+                      <div className="bg-slate-900/80 rounded-lg p-3 border border-amber-500/30">
+                        <div className="flex justify-between items-start mb-2">
+                          <p className="text-xs text-amber-400 uppercase tracking-wider font-bold">AI Potential Cause</p>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${ diagState.analysis.confidence === 'High' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400' }`}>{diagState.analysis.confidence} Confidence</span>
+                        </div>
+                        <p className="text-slate-200 text-xs leading-relaxed">{diagState.analysis.potentialCause}</p>
+                        {diagState.analysis.outOfScope && (
+                          <p className="text-xs text-indigo-300 mt-2 italic">📡 {diagState.analysis.outOfScope}</p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Select Diagnostic Action to Send to Client:</p>
+                        {diagState.analysis.ptOptions?.map((opt: any) => (
+                          <button
+                            key={opt.id}
+                            onClick={() => handleApproveOption(opt)}
+                            className="w-full text-left bg-slate-800 hover:bg-indigo-900/40 border border-slate-700 hover:border-indigo-500/60 rounded-lg p-3 transition-all group"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-white font-bold text-xs flex items-center gap-2">
+                                <ChevronRight className="w-3.5 h-3.5 text-indigo-400 group-hover:translate-x-1 transition-transform" />
+                                {opt.label}
+                              </span>
+                              <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded">Approve & Send</span>
+                            </div>
+                            <p className="text-slate-400 text-xs mt-1 ml-5">{opt.expectedOutcome}</p>
+                          </button>
+                        ))}
+                      </div>
+                      <button onClick={() => updateDiagState({ status: 'idle', issueText: '' })} className="text-xs text-slate-500 hover:text-slate-300">← Start Over</button>
+                    </div>
+                  )}
+
+                  {diagState.status === 'awaiting_client_result' && diagState.approvedOption && (
+                    <div className="space-y-3">
+                      <div className="bg-emerald-900/30 border border-emerald-500/40 rounded-lg p-3">
+                        <p className="text-xs text-emerald-400 font-bold uppercase tracking-wider mb-1">✅ Sent to Client</p>
+                        <p className="text-white text-sm font-bold">{diagState.approvedOption.label}</p>
+                        <p className="text-slate-400 text-xs mt-1">{diagState.approvedOption.instruction}</p>
+                      </div>
+                      <div className="bg-slate-900/80 border border-slate-700 rounded-lg p-3 animate-pulse">
+                        <p className="text-xs text-slate-400">⏳ Waiting for client to complete the test and log their result...</p>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-xs text-slate-400 font-bold">Or log client result yourself:</p>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={diagState.clientResult}
+                            onChange={e => updateDiagState({ clientResult: e.target.value })}
+                            placeholder="e.g. Depth significantly improved with heel elevation"
+                            className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs focus:border-emerald-500 outline-none"
+                          />
+                          <button
+                            onClick={handleAutoLog}
+                            disabled={!diagState.clientResult.trim()}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            Auto-Log
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {diagState.status === 'auto_logging' && (
+                    <div className="flex items-center gap-3 py-2">
+                      <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                      <p className="text-emerald-300 text-sm font-bold">AI generating clinical log & updating blueprint...</p>
+                    </div>
+                  )}
+
+                  {diagState.status === 'complete' && diagState.autoLogResult && (
+                    <div className="space-y-3">
+                      <div className="bg-emerald-900/30 border border-emerald-500/40 rounded-lg p-3">
+                        <p className="text-xs text-emerald-400 font-bold uppercase tracking-wider mb-1">✅ AI Diagnostic Complete</p>
+                        <p className="text-white font-bold text-sm">{diagState.autoLogResult.conclusion}</p>
+                        <p className="text-slate-300 text-xs mt-2 leading-relaxed">{diagState.autoLogResult.patientLogNote}</p>
+                      </div>
+                      <div className="bg-indigo-900/30 border border-indigo-500/40 rounded-lg p-3">
+                        <p className="text-xs text-indigo-400 font-bold uppercase tracking-wider mb-1">🔄 Blueprint Auto-Updated</p>
+                        <p className="text-slate-200 text-xs">Added <span className="text-white font-bold">{diagState.autoLogResult.suggestedExercise}</span> ({diagState.autoLogResult.suggestedExerciseSets} sets × {diagState.autoLogResult.suggestedExerciseReps}s) to the active plan.</p>
+                      </div>
+                      <button onClick={() => updateDiagState({ status: 'idle', issueText: '', analysis: null, approvedOption: null, clientResult: '', autoLogResult: null })} className="text-xs text-indigo-400 hover:text-indigo-300 font-bold">+ Log Another Issue</button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-2 space-y-4">
+                  <h4 className="text-white font-bold text-sm border-b border-emerald-500/30 pb-2">
+                    {activeBlueprint ? `Execution Tracker: ${activeBlueprint.name}` : 'No Active Plan'}
+                  </h4>
+                  {activeBlueprintExercises.length > 0 ? (
+                    activeBlueprintExercises.map(ex => {
+                      const setsData = executionLog[ex.id] || [];
+                      return (
+                        <div key={ex.id} className="bg-slate-900/80 p-4 rounded-xl border border-slate-800 flex flex-col gap-3">
+                          <div>
+                            <span className="text-white font-bold text-sm">{ex.exerciseName}</span>
+                            <span className="text-slate-400 text-xs ml-2">
+                              Target: {ex.sets} sets × {ex.reps} {ex.isStaticHold ? 'sec hold' : 'reps'} @ {ex.weight}
+                            </span>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            {Array.from({ length: ex.sets }).map((_, setIdx) => {
+                              const setLog = setsData[setIdx] || { actualReps: 0, actualWeight: '', actualTime: '', completed: false };
+                              return (
+                                <div key={setIdx} className={`flex items-center gap-3 p-2 rounded ${setLog.completed ? 'bg-emerald-900/20 border border-emerald-800' : 'bg-slate-950 border border-slate-800'}`}>
+                                  <label className="flex items-center gap-2 cursor-pointer w-20">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={setLog.completed}
+                                      onChange={(e) => updateExecutionSet(ex.id, setIdx, 'completed', e.target.checked)}
+                                      className="rounded bg-slate-900 border-slate-700 text-emerald-500"
+                                    />
+                                    <span className="text-xs text-slate-300">Set {setIdx + 1}</span>
+                                  </label>
+                                  
+                                  <input 
+                                    type="number"
+                                    placeholder={ex.isStaticHold ? "Time (s)" : "Reps"}
+                                    value={ex.isStaticHold ? setLog.actualTime : setLog.actualReps}
+                                    onChange={(e) => updateExecutionSet(ex.id, setIdx, ex.isStaticHold ? 'actualTime' : 'actualReps', e.target.value)}
+                                    disabled={setLog.completed}
+                                    className="w-20 bg-slate-900 border border-slate-700 rounded p-1 text-white text-xs disabled:opacity-50"
+                                  />
+                                  <input 
+                                    type="text"
+                                    placeholder="Weight"
+                                    value={setLog.actualWeight}
+                                    onChange={(e) => updateExecutionSet(ex.id, setIdx, 'actualWeight', e.target.value)}
+                                    disabled={setLog.completed}
+                                    className="w-24 bg-slate-900 border border-slate-700 rounded p-1 text-white text-xs disabled:opacity-50"
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-slate-400 text-xs py-4 text-center border border-slate-800 border-dashed rounded-lg bg-slate-900/40">
+                      No blueprint assigned. Go to the Session Planner tab to set an Active Day Plan.
+                    </div>
+                  )}
                 </div>
               </div>
             ) : roomState.clientStatus === 'DENIED' ? (
@@ -487,6 +1428,82 @@ function PTRoomView({ dbConn, rooms }: { dbConn: DbConnection | null, rooms: Roo
                 <h3 className="text-base font-medium text-slate-300">Waiting for Client to Enter Room</h3>
               </div>
             )}
+              </>
+            )}
+            
+
+            {activeTab === 'history' && (
+              <div className="flex flex-col gap-6">
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                  <div>
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                      <Calendar className="w-5 h-5 text-indigo-400" />
+                      Patient Session History
+                    </h2>
+                    <p className="text-xs text-slate-400">Past performance logs and exercise data</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {sessionHistory
+                    .filter(h => h.roomId === roomState.roomId)
+                    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                    .map((session) => {
+                      let exercises: any[] = [];
+                      try {
+                        exercises = JSON.parse(session.completedExercisesJson || "[]");
+                      } catch (e) {
+                        console.error("Failed to parse exercises", e);
+                      }
+
+                      return (
+                        <div key={session.logId} className="bg-slate-900/80 p-5 rounded-xl border border-slate-800 flex flex-col gap-3">
+                          <div className="flex items-center justify-between border-b border-slate-700/50 pb-2">
+                            <span className="text-indigo-300 font-bold flex items-center gap-1.5 text-sm">
+                              <Calendar className="w-4 h-4 text-indigo-400" />
+                              {session.timestamp}
+                            </span>
+                          </div>
+                          
+                          {session.notes && (
+                            <div className="text-sm">
+                              <span className="text-slate-400 font-bold block mb-1">Clinician Notes:</span>
+                              <p className="text-slate-200">{session.notes}</p>
+                            </div>
+                          )}
+
+                          {exercises.length > 0 && (
+                            <div className="mt-2">
+                              <span className="text-slate-400 font-bold block mb-2 text-sm">Completed Exercises:</span>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {exercises.map((ex, exIdx) => (
+                                  <div key={exIdx} className="bg-slate-950 p-2.5 rounded border border-slate-800">
+                                    <div className="flex justify-between font-bold text-slate-200 text-xs">
+                                      <span>{exIdx + 1}. {ex.exerciseName}</span>
+                                      <span className="text-indigo-400">{ex.sets}x{ex.reps} {ex.isStaticHold ? '(Hold)' : ''}</span>
+                                    </div>
+                                    {ex.weight && ex.weight !== 'BW' && (
+                                      <p className="text-slate-400 text-[10px] mt-1">Weight: {ex.weight}</p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                  {sessionHistory.filter(h => h.roomId === roomState.roomId).length === 0 && (
+                    <div className="text-center py-10 text-slate-500 bg-slate-900/40 rounded-xl border border-slate-800 border-dashed">
+                      <ClipboardList className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                      <p className="text-sm">No historical sessions found for this patient.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -495,9 +1512,198 @@ function PTRoomView({ dbConn, rooms }: { dbConn: DbConnection | null, rooms: Roo
 }
 
 // -------------------------------------------------------------
+// Client Exercise View Sub-Component (for CONNECTED state)
+// -------------------------------------------------------------
+function ClientExerciseView({ roomState }: { roomState: RoomData }) {
+  const squatExercise = {
+    name: 'Bodyweight Squat',
+    videoUrl: 'https://www.youtube.com/embed/dW3zj79xfrc',
+    imageUrl: 'https://i0.wp.com/www.strengthlog.com/wp-content/uploads/2020/05/Squat-muscles-worked.png?resize=700%2C700&ssl=1',
+    commonIssues: [
+      { id: 'knee-valgus', title: 'Knees Collapsing Inward', icon: '🦵' },
+      { id: 'heel-lift', title: 'Heels Lifting Off Floor / Unable to keep back straight', icon: '🦶' },
+      { id: 'butt-wink', title: 'Lower Back Rounding', icon: '🍑' },
+      { id: 'no-depth', title: "Can't Reach Depth", icon: '⬇️' },
+      { id: 'back-pain', title: 'Lower Back Discomfort', icon: '🔴' },
+    ]
+  };
+
+  const [issueInput, setIssueInput] = useState('');
+  const [submittedIssue, setSubmittedIssue] = useState('');
+  const [clientResult, setClientResult] = useState('');
+  const [resultSubmitted, setResultSubmitted] = useState(false);
+  const [clientDiagState, setClientDiagState] = useState<DiagnosticState | null>(null);
+
+  // Poll sessionStorage for PT-approved instruction
+  useEffect(() => {
+    const poll = setInterval(() => {
+      try {
+        const raw = sessionStorage.getItem(DIAG_STATE_KEY + '_' + roomState.roomId);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          setClientDiagState(parsed);
+        }
+      } catch {}
+    }, 1500);
+    return () => clearInterval(poll);
+  }, [roomState.roomId]);
+
+  const handleClientLogIssue = (text: string) => {
+    setSubmittedIssue(text);
+    try {
+      const existing = sessionStorage.getItem(DIAG_STATE_KEY + '_' + roomState.roomId);
+      const state = existing ? JSON.parse(existing) : {};
+      const updated = { ...state, issueText: text, loggedBy: 'CLIENT', status: 'needs_pt_analysis' };
+      sessionStorage.setItem(DIAG_STATE_KEY + '_' + roomState.roomId, JSON.stringify(updated));
+    } catch {}
+  };
+
+  const handleClientSubmitResult = () => {
+    if (!clientResult.trim()) return;
+    setResultSubmitted(true);
+    try {
+      const existing = sessionStorage.getItem(DIAG_STATE_KEY + '_' + roomState.roomId);
+      const state = existing ? JSON.parse(existing) : {};
+      const updated = { ...state, clientResult, status: 'awaiting_client_result' };
+      sessionStorage.setItem(DIAG_STATE_KEY + '_' + roomState.roomId, JSON.stringify(updated));
+    } catch {}
+  };
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* Session Active Banner */}
+      <div className="bg-emerald-950/40 border border-emerald-500/40 p-3 rounded-xl flex items-center gap-3">
+        <div className="bg-emerald-500/20 p-2 rounded-lg text-emerald-400 border border-emerald-500/30">
+          <Sparkles className="w-5 h-5" />
+        </div>
+        <div>
+          <span className="text-xs uppercase font-bold tracking-wider text-emerald-400">Live Session Active</span>
+          <p className="text-xs text-slate-300">Connected with {roomState.ptName}</p>
+        </div>
+      </div>
+
+      {/* Exercise: Video */}
+      <div className="space-y-2">
+        <h3 className="text-white font-bold text-base">Today's Exercise: {squatExercise.name}</h3>
+        <div className="rounded-xl overflow-hidden border border-slate-700 aspect-video">
+          <iframe
+            src={squatExercise.videoUrl}
+            title="Exercise Form Video"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            className="w-full h-full"
+          />
+        </div>
+        <p className="text-xs text-slate-400">Watch the full video to learn proper form before starting.</p>
+      </div>
+
+      {/* Muscles + Common Issues */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <h4 className="text-slate-300 text-xs font-bold uppercase tracking-wider">Muscles Targeted</h4>
+          <div className="rounded-xl overflow-hidden border border-slate-700 bg-slate-900">
+            <img src={squatExercise.imageUrl} alt="Muscles worked in squat" className="w-full object-contain" />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <h4 className="text-slate-300 text-xs font-bold uppercase tracking-wider">Common Issues (Tap to Flag)</h4>
+          <div className="space-y-1.5">
+            {squatExercise.commonIssues.map(issue => (
+              <button
+                key={issue.id}
+                onClick={() => { setSubmittedIssue(''); handleClientLogIssue(issue.title); }}
+                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all border ${
+                  submittedIssue === issue.title
+                    ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                    : 'bg-slate-900 border-slate-700 hover:border-amber-500/40 text-slate-300 hover:text-amber-300'
+                }`}
+              >
+                <span>{issue.icon}</span>
+                <span className="leading-tight">{issue.title}</span>
+                {submittedIssue === issue.title && <span className="ml-auto text-amber-400 shrink-0">✓</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Free text issue logging */}
+      {!submittedIssue && (
+        <div className="space-y-2">
+          <h4 className="text-slate-300 text-xs font-bold uppercase tracking-wider">Describe Discomfort</h4>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={issueInput}
+              onChange={e => setIssueInput(e.target.value)}
+              placeholder="e.g. I feel tightness in my lower back..."
+              className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs focus:border-amber-500/60 outline-none"
+              onKeyDown={e => { if (e.key === 'Enter' && issueInput.trim()) { handleClientLogIssue(issueInput); setIssueInput(''); } }}
+            />
+            <button
+              onClick={() => { if (issueInput.trim()) { handleClientLogIssue(issueInput); setIssueInput(''); } }}
+              disabled={!issueInput.trim()}
+              className="bg-amber-600 hover:bg-amber-500 text-white px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-50"
+            >
+              <Send className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Flagged issue confirmation */}
+      {submittedIssue && !clientDiagState?.approvedOption && (
+        <div className="bg-amber-950/30 border border-amber-500/40 rounded-xl p-3 space-y-1">
+          <p className="text-xs text-amber-400 font-bold">⚡ Issue Flagged – PT has been notified</p>
+          <p className="text-slate-200 text-xs italic">"{submittedIssue}"</p>
+          <p className="text-slate-400 text-xs">Your physiotherapist is analyzing and will send instructions shortly.</p>
+        </div>
+      )}
+
+      {/* PT approved diagnostic instruction */}
+      {clientDiagState?.status === 'awaiting_client_result' && clientDiagState.approvedOption && !resultSubmitted && (
+        <div className="bg-indigo-950/50 border border-indigo-500/50 rounded-xl p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Brain className="w-4 h-4 text-indigo-400" />
+            <p className="text-xs text-indigo-400 font-bold uppercase tracking-wider">PT Diagnostic Test for You</p>
+          </div>
+          <p className="text-white font-bold">{clientDiagState.approvedOption.label}</p>
+          <p className="text-slate-300 text-sm leading-relaxed">{clientDiagState.approvedOption.instruction}</p>
+          <div className="space-y-2 pt-2 border-t border-indigo-500/30">
+            <p className="text-xs text-slate-400 font-bold">After completing the test, tell us how it went:</p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={clientResult}
+                onChange={e => setClientResult(e.target.value)}
+                placeholder="e.g. Much easier with heels elevated!"
+                className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs focus:border-emerald-500 outline-none"
+              />
+              <button
+                onClick={handleClientSubmitResult}
+                disabled={!clientResult.trim()}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-50"
+              >
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {resultSubmitted && (
+        <div className="bg-emerald-950/30 border border-emerald-500/40 rounded-xl p-3">
+          <p className="text-xs text-emerald-400 font-bold">✅ Result logged! Your PT will review and update your plan.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// -------------------------------------------------------------
 // Client Mobile View Component
 // -------------------------------------------------------------
-function ClientView({ isConnected, dbConn, rooms }: { isConnected: boolean, dbConn: DbConnection | null, rooms: RoomData[] }) {
+function ClientView({ isConnected, dbConn, rooms, sessionHistory }: { isConnected: boolean, dbConn: DbConnection | null, rooms: RoomData[], sessionHistory: SessionHistoryData[] }) {
   const { roomToken } = useParams();
   const [inputName, setInputName] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'session' | 'homework'>('session');
@@ -649,25 +1855,14 @@ function ClientView({ isConnected, dbConn, rooms }: { isConnected: boolean, dbCo
               </div>
             )}
 
-            {/* State 3: Live Session Active */}
+            {/* State 3: Live Session Active - Rich Exercise View */}
             {roomState.clientStatus === 'CONNECTED' && (
-              <div className="bg-emerald-950/30 border border-emerald-500/40 p-6 rounded-2xl flex flex-col gap-4 text-center">
-                <div className="bg-emerald-500/20 p-4 rounded-full text-emerald-400 border border-emerald-500/30 mx-auto">
-                  <Sparkles className="w-8 h-8" />
-                </div>
-                <div>
-                  <span className="text-xs uppercase font-bold tracking-wider text-emerald-400">Access Granted</span>
-                  <h3 className="text-xl font-extrabold text-white mt-1">Live Session Active</h3>
-                  <p className="text-xs text-slate-300 mt-1">
-                    Connected in private room with {roomState.ptName}.
-                  </p>
-                </div>
-              </div>
+              <ClientExerciseView roomState={roomState} />
             )}
           </div>
         )}
 
-        {/* Tab 2: My Homework (Home Rx) */}
+        {/* Tab 2: My Homework (Home Rx & History) */}
         {activeTab === 'homework' && (
           isVerified ? (
             <div className="flex flex-col gap-4 text-xs">
@@ -675,62 +1870,79 @@ function ClientView({ isConnected, dbConn, rooms }: { isConnected: boolean, dbCo
                 <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
                   <h3 className="font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 text-xs">
                     <FileText className="w-4 h-4 text-indigo-400" />
-                    Prescribed Home Rehab Plan
+                    Session History & Homework
                   </h3>
                   <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded font-mono">
                     Verified: {roomState.expectedClientName}
                   </span>
                 </div>
 
-                <div className="space-y-3 text-slate-300">
-                  <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
-                    <div className="flex justify-between font-bold text-white text-sm">
-                      <span>1. Bodyweight Squat Calibration</span>
-                      <span className="text-indigo-400 text-xs">3 sets x 10 reps</span>
-                    </div>
-                    <p className="text-slate-400 text-[11px]">
-                      • Maintain 3-point foot contact. Push knees outward over toes without caving in.
-                    </p>
-                  </div>
+                <div className="space-y-4">
+                  {sessionHistory
+                    .filter(h => h.roomId === roomState.roomId)
+                    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                    .map((session, index) => {
+                      let exercises: any[] = [];
+                      try {
+                        exercises = JSON.parse(session.completedExercisesJson || "[]");
+                      } catch (e) {
+                        console.error("Failed to parse exercises", e);
+                      }
 
-                  <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
-                    <div className="flex justify-between font-bold text-white text-sm">
-                      <span>2. Glute Activation Bridges</span>
-                      <span className="text-indigo-400 text-xs">2 sets x 12 reps</span>
-                    </div>
-                    <p className="text-slate-400 text-[11px]">
-                      • Drive through heels and squeeze glutes at peak hold for 2 seconds before lowering.
-                    </p>
-                  </div>
+                      return (
+                        <div key={session.logId} className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                          <div className="flex items-center justify-between border-b border-slate-800/50 pb-2">
+                            <span className="text-indigo-300 font-bold flex items-center gap-1.5">
+                              <Calendar className="w-4 h-4 text-emerald-400" />
+                              {session.timestamp}
+                            </span>
+                            {index === 0 && (
+                              <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded uppercase tracking-wider font-bold">Latest</span>
+                            )}
+                          </div>
+                          
+                          {/* PT Notes */}
+                          {session.notes && (
+                            <div className="bg-indigo-950/30 p-3 rounded-lg border border-indigo-500/20">
+                              <span className="text-slate-400 font-bold block mb-1">🏥 PT Clinician Notes:</span>
+                              <p className="text-slate-200 italic">"{session.notes}"</p>
+                            </div>
+                          )}
 
-                  <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
-                    <div className="flex justify-between font-bold text-white text-sm">
-                      <span>3. Wall Ankle Dorsiflexion Drill</span>
-                      <span className="text-indigo-400 text-xs">2 sets x 10 reps</span>
+                          {/* Exercises from this session */}
+                          {exercises.length > 0 ? (
+                            <div className="space-y-2 mt-2">
+                              <h4 className="text-slate-300 font-bold mb-2 flex items-center gap-1">
+                                <Activity className="w-3.5 h-3.5 text-purple-400" />
+                                Assigned Exercises
+                              </h4>
+                              {exercises.map((ex, exIdx) => (
+                                <div key={exIdx} className="bg-slate-900 p-2.5 rounded border border-slate-800 space-y-1">
+                                  <div className="flex justify-between font-bold text-slate-200 text-xs">
+                                    <span>{exIdx + 1}. {ex.exerciseName}</span>
+                                    <span className="text-indigo-400">{ex.sets} sets x {ex.reps} reps {ex.isStaticHold ? '(Hold)' : ''}</span>
+                                  </div>
+                                  {ex.weight && ex.weight !== 'BW' && (
+                                    <p className="text-slate-400 text-[10px]">• Weight: {ex.weight}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-slate-500 italic mt-2">No specific exercises logged for this session.</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  
+                  {sessionHistory.filter(h => h.roomId === roomState.roomId).length === 0 && (
+                    <div className="text-center py-6 text-slate-500">
+                      <ClipboardList className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p>No past sessions recorded yet.</p>
                     </div>
-                    <p className="text-slate-400 text-[11px]">
-                      • Keep heel firmly on ground while bending knee forward toward wall.
-                    </p>
-                  </div>
+                  )}
                 </div>
               </div>
-
-              {/* Clinician Feedback */}
-              {roomState.lastSessionNotes && (
-                <div className="bg-indigo-950/40 p-4 rounded-xl border border-indigo-500/30 space-y-2">
-                  <div className="flex items-center justify-between border-b border-indigo-500/20 pb-2">
-                    <span className="text-indigo-300 font-bold flex items-center gap-1.5">
-                      <CheckCircle className="w-4 h-4 text-emerald-400" />
-                      Previous Session Logged
-                    </span>
-                    {roomState.lastSessionTimestamp && (
-                      <span className="text-indigo-400/80 font-mono text-[10px]">{roomState.lastSessionTimestamp}</span>
-                    )}
-                  </div>
-                  <span className="text-slate-400 font-bold block mb-1">🏥 PT Clinician Notes:</span>
-                  <p className="text-slate-200 italic">"{roomState.lastSessionNotes}"</p>
-                </div>
-              )}
             </div>
           ) : (
             /* Confidential Security Lock Card */
@@ -782,7 +1994,7 @@ function ClientView({ isConnected, dbConn, rooms }: { isConnected: boolean, dbCo
 // Main App Router Component
 // -------------------------------------------------------------
 export function App() {
-  const { isConnected, rooms, dbConn } = useSpaceTimeDB();
+  const { isConnected, rooms, sessionHistory, blueprints, blueprintExercises, exerciseDictionary, dbConn } = useSpaceTimeDB();
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
@@ -817,10 +2029,10 @@ export function App() {
 
       {/* Routing Logic */}
       <Routes>
+        <Route path="/" element={<PTDashboard rooms={rooms} />} />
         <Route path="/pt" element={<PTDashboard rooms={rooms} />} />
-        <Route path="/pt/room/:roomId" element={<PTRoomView dbConn={dbConn} rooms={rooms} />} />
-        <Route path="/client/:roomToken" element={<ClientView isConnected={isConnected} dbConn={dbConn} rooms={rooms} />} />
-        {/* Default Redirect to PT dashboard */}
+        <Route path="/pt/room/:roomId" element={<PTRoomView dbConn={dbConn} rooms={rooms} sessionHistory={sessionHistory} blueprints={blueprints} blueprintExercises={blueprintExercises} exerciseDictionary={exerciseDictionary} />} />
+        <Route path="/client/:roomToken" element={<ClientView isConnected={isConnected} dbConn={dbConn} rooms={rooms} sessionHistory={sessionHistory} />} />
         <Route path="*" element={<PTDashboard rooms={rooms} />} />
       </Routes>
     </div>

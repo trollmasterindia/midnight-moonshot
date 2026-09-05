@@ -53,9 +53,12 @@ const spacetimedb = schema({
     {
       exerciseId: t.string().primaryKey(),
       name: t.string(),
-      category: t.string(), // e.g. Rehab, Hypertrophy, Power, Mobility, Core
+      category: t.string(), 
       targetMuscle: t.string(),
       description: t.string(),
+      videoUrl: t.string(),
+      imageUrl: t.string(),
+      commonIssuesJson: t.string(),
     }
   ),
 });
@@ -83,16 +86,29 @@ export const init = spacetimedb.init(ctx => {
   // Seed top 30 exercises
   const exercises = [
     // Rehab & Mobility
-    { id: 'ex-1', name: 'Bodyweight Squat', cat: 'Rehab', mus: 'Quads/Glutes', desc: 'Basic functional movement' },
-    { id: 'ex-2', name: 'Glute Bridge', cat: 'Rehab', mus: 'Glutes', desc: 'Core and glute activation' },
-    { id: 'ex-3', name: 'Clamshells', cat: 'Rehab', mus: 'Hip Abductors', desc: 'Strengthens gluteus medius' },
-    { id: 'ex-4', name: 'Straight Leg Raise', cat: 'Rehab', mus: 'Quads', desc: 'Knee rehabilitation' },
-    { id: 'ex-5', name: 'Calf Raises', cat: 'Rehab', mus: 'Calves', desc: 'Ankle stability' },
-    { id: 'ex-6', name: 'Bird Dog', cat: 'Core', mus: 'Core/Back', desc: 'Spinal stability' },
-    { id: 'ex-7', name: 'Dead Bug', cat: 'Core', mus: 'Core', desc: 'Anterior core control' },
-    { id: 'ex-8', name: 'Side Plank', cat: 'Core', mus: 'Obliques', desc: 'Lateral core stability' },
-    { id: 'ex-9', name: 'Ankle Dorsiflexion stretch', cat: 'Mobility', mus: 'Ankle', desc: 'Improves squat depth' },
-    { id: 'ex-10', name: '90/90 Hip Stretch', cat: 'Mobility', mus: 'Hips', desc: 'Hip internal/external rotation' },
+    { 
+      id: 'ex-1', 
+      name: 'Bodyweight Squat', 
+      cat: 'Rehab', 
+      mus: 'Quads/Glutes', 
+      desc: 'Basic functional movement',
+      videoUrl: 'https://www.youtube.com/embed/dW3zj79xfrc',
+      imageUrl: 'https://i0.wp.com/www.strengthlog.com/wp-content/uploads/2020/05/Squat-muscles-worked.png?resize=700%2C700&ssl=1',
+      commonIssuesJson: JSON.stringify([
+        { id: 'knee-valgus', title: 'Knees Collapsing Inward (Valgus)', icon: '🦵' },
+        { id: 'heel-lift', title: 'Heels Lifting Off Floor', icon: '🦶' },
+        { id: 'butt-wink', title: 'Lower Back Rounding (Butt Wink)', icon: '🍑' }
+      ])
+    },
+    { id: 'ex-2', name: 'Glute Bridge', cat: 'Rehab', mus: 'Glutes', desc: 'Core and glute activation', videoUrl: '', imageUrl: '', commonIssuesJson: '[]' },
+    { id: 'ex-3', name: 'Clamshells', cat: 'Rehab', mus: 'Hip Abductors', desc: 'Strengthens gluteus medius', videoUrl: '', imageUrl: '', commonIssuesJson: '[]' },
+    { id: 'ex-4', name: 'Straight Leg Raise', cat: 'Rehab', mus: 'Quads', desc: 'Knee rehabilitation', videoUrl: '', imageUrl: '', commonIssuesJson: '[]' },
+    { id: 'ex-5', name: 'Calf Raises', cat: 'Rehab', mus: 'Calves', desc: 'Ankle stability', videoUrl: '', imageUrl: '', commonIssuesJson: '[]' },
+    { id: 'ex-6', name: 'Bird Dog', cat: 'Core', mus: 'Core/Back', desc: 'Spinal stability', videoUrl: '', imageUrl: '', commonIssuesJson: '[]' },
+    { id: 'ex-7', name: 'Dead Bug', cat: 'Core', mus: 'Core', desc: 'Anterior core control', videoUrl: '', imageUrl: '', commonIssuesJson: '[]' },
+    { id: 'ex-8', name: 'Side Plank', cat: 'Core', mus: 'Obliques', desc: 'Lateral core stability', videoUrl: '', imageUrl: '', commonIssuesJson: '[]' },
+    { id: 'ex-9', name: 'Ankle Dorsiflexion stretch', cat: 'Mobility', mus: 'Ankle', desc: 'Improves squat depth', videoUrl: '', imageUrl: '', commonIssuesJson: '[]' },
+    { id: 'ex-10', name: '90/90 Hip Stretch', cat: 'Mobility', mus: 'Hips', desc: 'Hip internal/external rotation', videoUrl: '', imageUrl: '', commonIssuesJson: '[]' },
 
     // Hypertrophy
     { id: 'ex-11', name: 'Barbell Back Squat', cat: 'Hypertrophy', mus: 'Quads/Glutes', desc: 'Primary lower body builder' },
@@ -125,7 +141,10 @@ export const init = spacetimedb.init(ctx => {
       name: ex.name,
       category: ex.cat,
       targetMuscle: ex.mus,
-      description: ex.desc
+      description: ex.desc,
+      videoUrl: (ex as any).videoUrl || '',
+      imageUrl: (ex as any).imageUrl || '',
+      commonIssuesJson: (ex as any).commonIssuesJson || '[]'
     });
   }
 });
@@ -136,16 +155,29 @@ export const seedExercises = spacetimedb.reducer(
     // Seed top 30 exercises
     const exercises = [
       // Rehab & Mobility
-      { id: 'ex-1', name: 'Bodyweight Squat', cat: 'Rehab', mus: 'Quads/Glutes', desc: 'Basic functional movement' },
-      { id: 'ex-2', name: 'Glute Bridge', cat: 'Rehab', mus: 'Glutes', desc: 'Core and glute activation' },
-      { id: 'ex-3', name: 'Clamshells', cat: 'Rehab', mus: 'Hip Abductors', desc: 'Strengthens gluteus medius' },
-      { id: 'ex-4', name: 'Straight Leg Raise', cat: 'Rehab', mus: 'Quads', desc: 'Knee rehabilitation' },
-      { id: 'ex-5', name: 'Calf Raises', cat: 'Rehab', mus: 'Calves', desc: 'Ankle stability' },
-      { id: 'ex-6', name: 'Bird Dog', cat: 'Core', mus: 'Core/Back', desc: 'Spinal stability' },
-      { id: 'ex-7', name: 'Dead Bug', cat: 'Core', mus: 'Core', desc: 'Anterior core control' },
-      { id: 'ex-8', name: 'Side Plank', cat: 'Core', mus: 'Obliques', desc: 'Lateral core stability' },
-      { id: 'ex-9', name: 'Ankle Dorsiflexion stretch', cat: 'Mobility', mus: 'Ankle', desc: 'Improves squat depth' },
-      { id: 'ex-10', name: '90/90 Hip Stretch', cat: 'Mobility', mus: 'Hips', desc: 'Hip internal/external rotation' },
+      { 
+        id: 'ex-1', 
+        name: 'Bodyweight Squat', 
+        cat: 'Rehab', 
+        mus: 'Quads/Glutes', 
+        desc: 'Basic functional movement',
+        videoUrl: 'https://www.youtube.com/embed/dW3zj79xfrc',
+        imageUrl: 'https://i0.wp.com/www.strengthlog.com/wp-content/uploads/2020/05/Squat-muscles-worked.png?resize=700%2C700&ssl=1',
+        commonIssuesJson: JSON.stringify([
+          { id: 'knee-valgus', title: 'Knees Collapsing Inward (Valgus)', icon: '🦵' },
+          { id: 'heel-lift', title: 'Heels Lifting Off Floor', icon: '🦶' },
+          { id: 'butt-wink', title: 'Lower Back Rounding (Butt Wink)', icon: '🍑' }
+        ])
+      },
+      { id: 'ex-2', name: 'Glute Bridge', cat: 'Rehab', mus: 'Glutes', desc: 'Core and glute activation', videoUrl: '', imageUrl: '', commonIssuesJson: '[]' },
+      { id: 'ex-3', name: 'Clamshells', cat: 'Rehab', mus: 'Hip Abductors', desc: 'Strengthens gluteus medius', videoUrl: '', imageUrl: '', commonIssuesJson: '[]' },
+      { id: 'ex-4', name: 'Straight Leg Raise', cat: 'Rehab', mus: 'Quads', desc: 'Knee rehabilitation', videoUrl: '', imageUrl: '', commonIssuesJson: '[]' },
+      { id: 'ex-5', name: 'Calf Raises', cat: 'Rehab', mus: 'Calves', desc: 'Ankle stability', videoUrl: '', imageUrl: '', commonIssuesJson: '[]' },
+      { id: 'ex-6', name: 'Bird Dog', cat: 'Core', mus: 'Core/Back', desc: 'Spinal stability', videoUrl: '', imageUrl: '', commonIssuesJson: '[]' },
+      { id: 'ex-7', name: 'Dead Bug', cat: 'Core', mus: 'Core', desc: 'Anterior core control', videoUrl: '', imageUrl: '', commonIssuesJson: '[]' },
+      { id: 'ex-8', name: 'Side Plank', cat: 'Core', mus: 'Obliques', desc: 'Lateral core stability', videoUrl: '', imageUrl: '', commonIssuesJson: '[]' },
+      { id: 'ex-9', name: 'Ankle Dorsiflexion stretch', cat: 'Mobility', mus: 'Ankle', desc: 'Improves squat depth', videoUrl: '', imageUrl: '', commonIssuesJson: '[]' },
+      { id: 'ex-10', name: '90/90 Hip Stretch', cat: 'Mobility', mus: 'Hips', desc: 'Hip internal/external rotation', videoUrl: '', imageUrl: '', commonIssuesJson: '[]' },
 
       // Hypertrophy
       { id: 'ex-11', name: 'Barbell Back Squat', cat: 'Hypertrophy', mus: 'Quads/Glutes', desc: 'Primary lower body builder' },
@@ -187,7 +219,10 @@ export const seedExercises = spacetimedb.reducer(
           name: ex.name,
           category: ex.cat,
           targetMuscle: ex.mus,
-          description: ex.desc
+          description: ex.desc,
+          videoUrl: ex.videoUrl || '',
+          imageUrl: ex.imageUrl || '',
+          commonIssuesJson: ex.commonIssuesJson || '[]'
         });
       }
     }
