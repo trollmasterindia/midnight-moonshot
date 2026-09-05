@@ -497,17 +497,49 @@ function ClientView({ isConnected, dbConn, rooms }: { isConnected: boolean, dbCo
   const { roomToken } = useParams();
   const [inputName, setInputName] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'session' | 'homework'>('session');
+  const [isVerified, setIsVerified] = useState<boolean>(false);
+  const [verificationError, setVerificationError] = useState<boolean>(false);
   
   const roomState = rooms.find(r => r.roomToken === roomToken);
 
+  // Auto-verify if user already submitted correct name or is connected
+  useEffect(() => {
+    if (!roomState) return;
+    const submittedMatch = roomState.submittedClientName && roomState.submittedClientName.trim().toLowerCase() === roomState.expectedClientName.toLowerCase();
+    if (roomState.clientStatus === 'CONNECTED' || roomState.clientStatus === 'WAITING_APPROVAL' || submittedMatch) {
+      setIsVerified(true);
+    }
+  }, [roomState]);
+
   const handleRequestEntry = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!dbConn || !inputName.trim() || !roomToken) return;
+    if (!dbConn || !inputName.trim() || !roomToken || !roomState) return;
+
+    const matches = inputName.trim().toLowerCase() === roomState.expectedClientName.toLowerCase();
+    if (matches) {
+      setIsVerified(true);
+      setVerificationError(false);
+    } else {
+      setVerificationError(true);
+    }
 
     dbConn.reducers.requestRoomEntry({
       roomToken: roomToken,
       clientName: inputName.trim(),
     });
+  };
+
+  const handleVerifyIdentity = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!roomState || !inputName.trim()) return;
+
+    const matches = inputName.trim().toLowerCase() === roomState.expectedClientName.toLowerCase();
+    if (matches) {
+      setIsVerified(true);
+      setVerificationError(false);
+    } else {
+      setVerificationError(true);
+    }
   };
 
   if (!roomState) {
@@ -597,9 +629,9 @@ function ClientView({ isConnected, dbConn, rooms }: { isConnected: boolean, dbCo
                   />
                 </div>
 
-                {roomState.clientStatus === 'DENIED' && (
+                {(roomState.clientStatus === 'DENIED' || verificationError) && (
                   <p className="text-xs text-rose-400 bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20">
-                    ⚠️ Name did not match expected client name ({roomState.expectedClientName}). Please try again.
+                    ⚠️ Name did not match expected client name for this link ({roomState.expectedClientName}). Please check spelling and try again.
                   </p>
                 )}
 
@@ -649,59 +681,100 @@ function ClientView({ isConnected, dbConn, rooms }: { isConnected: boolean, dbCo
 
         {/* Tab 2: My Homework (Home Rx) */}
         {activeTab === 'homework' && (
-          <div className="flex flex-col gap-4 text-xs">
-            <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
-                <h3 className="font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 text-xs">
-                  <FileText className="w-4 h-4 text-indigo-400" />
-                  Prescribed Home Rehab Plan
-                </h3>
-                <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded font-mono">
-                  {roomState.expectedClientName}
-                </span>
+          isVerified ? (
+            <div className="flex flex-col gap-4 text-xs">
+              <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
+                  <h3 className="font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 text-xs">
+                    <FileText className="w-4 h-4 text-indigo-400" />
+                    Prescribed Home Rehab Plan
+                  </h3>
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded font-mono">
+                    Verified: {roomState.expectedClientName}
+                  </span>
+                </div>
+
+                <div className="space-y-3 text-slate-300">
+                  <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
+                    <div className="flex justify-between font-bold text-white text-sm">
+                      <span>1. Bodyweight Squat Calibration</span>
+                      <span className="text-indigo-400 text-xs">3 sets x 10 reps</span>
+                    </div>
+                    <p className="text-slate-400 text-[11px]">
+                      • Maintain 3-point foot contact. Push knees outward over toes without caving in.
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
+                    <div className="flex justify-between font-bold text-white text-sm">
+                      <span>2. Glute Activation Bridges</span>
+                      <span className="text-indigo-400 text-xs">2 sets x 12 reps</span>
+                    </div>
+                    <p className="text-slate-400 text-[11px]">
+                      • Drive through heels and squeeze glutes at peak hold for 2 seconds before lowering.
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
+                    <div className="flex justify-between font-bold text-white text-sm">
+                      <span>3. Wall Ankle Dorsiflexion Drill</span>
+                      <span className="text-indigo-400 text-xs">2 sets x 10 reps</span>
+                    </div>
+                    <p className="text-slate-400 text-[11px]">
+                      • Keep heel firmly on ground while bending knee forward toward wall.
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-3 text-slate-300">
-                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
-                  <div className="flex justify-between font-bold text-white text-sm">
-                    <span>1. Bodyweight Squat Calibration</span>
-                    <span className="text-indigo-400 text-xs">3 sets x 10 reps</span>
-                  </div>
-                  <p className="text-slate-400 text-[11px]">
-                    • Maintain 3-point foot contact. Push knees outward over toes without caving in.
-                  </p>
+              {/* Clinician Feedback */}
+              {roomState.lastSessionNotes && (
+                <div className="bg-indigo-950/40 p-4 rounded-xl border border-indigo-500/30">
+                  <span className="text-indigo-300 font-bold block mb-1">🏥 PT Clinician Notes:</span>
+                  <p className="text-slate-200 italic">"{roomState.lastSessionNotes}"</p>
                 </div>
-
-                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
-                  <div className="flex justify-between font-bold text-white text-sm">
-                    <span>2. Glute Activation Bridges</span>
-                    <span className="text-indigo-400 text-xs">2 sets x 12 reps</span>
-                  </div>
-                  <p className="text-slate-400 text-[11px]">
-                    • Drive through heels and squeeze glutes at peak hold for 2 seconds before lowering.
-                  </p>
-                </div>
-
-                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
-                  <div className="flex justify-between font-bold text-white text-sm">
-                    <span>3. Wall Ankle Dorsiflexion Drill</span>
-                    <span className="text-indigo-400 text-xs">2 sets x 10 reps</span>
-                  </div>
-                  <p className="text-slate-400 text-[11px]">
-                    • Keep heel firmly on ground while bending knee forward toward wall.
-                  </p>
-                </div>
-              </div>
+              )}
             </div>
-
-            {/* Clinician Feedback */}
-            {roomState.lastSessionNotes && (
-              <div className="bg-indigo-950/40 p-4 rounded-xl border border-indigo-500/30">
-                <span className="text-indigo-300 font-bold block mb-1">🏥 PT Clinician Notes:</span>
-                <p className="text-slate-200 italic">"{roomState.lastSessionNotes}"</p>
+          ) : (
+            /* Confidential Security Lock Card */
+            <div className="bg-slate-900/90 border border-slate-800 p-6 rounded-2xl text-center flex flex-col items-center gap-4">
+              <div className="bg-indigo-500/20 p-3.5 rounded-full text-indigo-400 border border-indigo-500/30">
+                <ShieldCheck className="w-8 h-8" />
               </div>
-            )}
-          </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Identity Verification Required</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Prescribed home rehab plans contain confidential health data. Please enter your full name to verify identity and unlock your plan.
+                </p>
+              </div>
+
+              <form onSubmit={handleVerifyIdentity} className="w-full space-y-3 mt-1">
+                <input
+                  type="text"
+                  value={inputName}
+                  onChange={(e) => setInputName(e.target.value)}
+                  placeholder={`e.g. ${roomState.expectedClientName}`}
+                  required
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm outline-none transition-all text-center font-medium"
+                />
+
+                {verificationError && (
+                  <p className="text-xs text-rose-400 bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20">
+                    ⚠️ Name did not match expected client name for this link ({roomState.expectedClientName}). Please try again.
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={!inputName.trim()}
+                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center space-x-2 transition-all shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Verify Identity & Unlock Homework</span>
+                </button>
+              </form>
+            </div>
+          )
         )}
       </div>
     </div>
