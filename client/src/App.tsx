@@ -124,7 +124,10 @@ function PTDashboard({ rooms }: { rooms: RoomData[] }) {
                 </div>
                 <div className="text-sm text-slate-400 space-y-1.5">
                   <p>Expected Client: <span className="text-slate-200 font-medium">{room.expectedClientName}</span></p>
-                  {(room.clientStatus === 'WAITING_APPROVAL' || room.clientStatus === 'DENIED') && room.submittedClientName && (
+                  {room.submittedClientName && (
+                    room.clientStatus === 'WAITING_APPROVAL' ||
+                    (room.clientStatus === 'DENIED' && room.submittedClientName.trim().toLowerCase() !== room.expectedClientName.trim().toLowerCase())
+                  ) && (
                     <p>Submitted Name: <span className="text-amber-300 font-medium">{room.submittedClientName}</span></p>
                   )}
 
