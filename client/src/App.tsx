@@ -5,7 +5,7 @@ import {
   Activity, ShieldCheck, UserCheck, Smartphone, 
   AlertCircle, CheckCircle2, Clock, Sparkles, QrCode, Send, UserX, Check, Users,
   LogOut, FileText, Calendar, ClipboardList, CheckCircle, Copy, Search, Brain, ChevronRight,
-  Dumbbell, Play, Video, PlayCircle, Eye, RefreshCw, X
+  Dumbbell, Play, Video, PlayCircle, Eye, RefreshCw, X, Plus, Repeat
 } from 'lucide-react';
 
 // -------------------------------------------------------
@@ -18,6 +18,20 @@ const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY || '';
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
 const GEMINI_MODEL = 'gemini-3.6-flash';
 const OPENAI_MODEL = 'gpt-5-nano';
+
+export function detectIsStaticHold(exerciseName: string): boolean {
+  const lower = (exerciseName || '').toLowerCase();
+  return (
+    lower.includes('plank') ||
+    lower.includes('wall sit') ||
+    lower.includes('hold') ||
+    lower.includes('stretch') ||
+    lower.includes('static') ||
+    lower.includes('90/90') ||
+    lower.includes('hang') ||
+    lower.includes('iso')
+  );
+}
 
 export interface CandidateVideo {
   id: string;
@@ -877,33 +891,67 @@ function BlueprintEditorModal({
   exerciseDictionary: ExerciseDictionaryData[];
   dbConn: DbConnection | null;
 }) {
+  const [name, setName] = useState('');
+  const [targetGoal, setTargetGoal] = useState('');
   const [editedExercises, setEditedExercises] = useState<any[]>([]);
   const [searchTerms, setSearchTerms] = useState<Record<number, string>>({});
   const [showDropdown, setShowDropdown] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
-    if (blueprint && exercises) {
-      setEditedExercises(exercises.map(ex => ({ ...ex })));
+    if (blueprint) {
+      setName(blueprint.name || '');
+      setTargetGoal(blueprint.targetGoal || '');
+      if (exercises && exercises.length > 0) {
+        setEditedExercises(exercises.map(ex => ({ ...ex })));
+      } else if (blueprint.blueprintId.startsWith('new-manual')) {
+        setEditedExercises([
+          {
+            id: `new-${Date.now()}-0`,
+            exerciseName: starterExercises[0].name,
+            sets: 3,
+            reps: 10,
+            weight: 'Bodyweight',
+            isStaticHold: false,
+            orderIndex: 0
+          }
+        ]);
+      } else {
+        setEditedExercises([]);
+      }
     }
   }, [blueprint, exercises]);
 
   if (!isOpen || !blueprint) return null;
 
+  const isNew = blueprint.blueprintId.startsWith('new-manual');
+
   const handleSave = () => {
     if (!dbConn) return;
+    const finalBpId = isNew ? `bp-${Date.now()}` : blueprint.blueprintId;
     dbConn.reducers.saveBlueprint({
-      blueprintId: blueprint.blueprintId,
+      blueprintId: finalBpId,
       roomId: blueprint.roomId,
-      name: blueprint.name,
-      targetGoal: blueprint.targetGoal,
-      isActiveDayPlan: blueprint.isActiveDayPlan,
+      name: name.trim() || (isNew ? 'Custom Session Plan' : blueprint.name),
+      targetGoal: targetGoal.trim() || 'Personalized Rehabilitation Protocol',
+      isActiveDayPlan: isNew ? true : blueprint.isActiveDayPlan,
       exercisesJson: JSON.stringify(editedExercises)
     });
     onClose();
   };
 
   const addExercise = () => {
-    setEditedExercises(prev => [...prev, { id: `new-${Date.now()}`, exerciseName: '', sets: 3, reps: 10, weight: 'BW', isStaticHold: false, orderIndex: prev.length }]);
+    setEditedExercises(prev => [
+      ...prev,
+      {
+        id: `new-${Date.now()}-${prev.length}`,
+        exerciseName: '',
+        sets: 3,
+        reps: 10,
+        weight: 'Bodyweight',
+        isStaticHold: false,
+        orderIndex: prev.length
+      }
+    ]);
   };
 
   const updateExercise = (index: number, field: string, value: any) => {
@@ -912,92 +960,329 @@ function BlueprintEditorModal({
     setEditedExercises(newExs);
   };
 
+  const selectExerciseFromList = (index: number, exName: string) => {
+    const isHold = detectIsStaticHold(exName);
+    const newExs = [...editedExercises];
+    newExs[index] = {
+      ...newExs[index],
+      exerciseName: exName,
+      isStaticHold: isHold,
+      reps: isHold ? 30 : 10
+    };
+    setEditedExercises(newExs);
+    setSearchTerms(prev => ({ ...prev, [index]: exName }));
+    setShowDropdown(prev => ({ ...prev, [index]: false }));
+  };
+
   const getFilteredExercises = (term: string) => {
-    if (!term || term.length < 2) return [];
-    return exerciseDictionary.filter(e => e.name.toLowerCase().includes(term.toLowerCase())).slice(0, 8);
+    if (!term || term.trim().length === 0) {
+      return starterExercises.slice(0, 8).map(s => ({
+        exerciseId: s.id,
+        name: s.name,
+        category: s.category,
+        targetMuscle: s.musclesTargeted
+      }));
+    }
+    const dictMatches = exerciseDictionary
+      .filter(e => e.name.toLowerCase().includes(term.toLowerCase()))
+      .slice(0, 8);
+    if (dictMatches.length > 0) return dictMatches;
+    return starterExercises
+      .filter(s => s.name.toLowerCase().includes(term.toLowerCase()))
+      .slice(0, 8)
+      .map(s => ({
+        exerciseId: s.id,
+        name: s.name,
+        category: s.category,
+        targetMuscle: s.musclesTargeted
+      }));
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <ClipboardList className="w-5 h-5 text-indigo-400" />
-            Edit Blueprint: {blueprint.name}
-          </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white"><UserX className="w-6 h-6" /></button>
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh]">
+        {/* Modal Header */}
+        <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/60">
+          <div>
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <ClipboardList className="w-5 h-5 text-indigo-400" />
+              {isNew ? 'Create Manual Session Plan' : `Edit Blueprint: ${blueprint.name}`}
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {isNew ? 'Configure custom exercises, sets, reps, and hold times.' : 'Update protocol exercises and prescribing parameters.'}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        <div className="p-6 flex-1 overflow-y-auto space-y-4">
-          {editedExercises.sort((a,b) => a.orderIndex - b.orderIndex).map((ex, idx) => (
-            <div key={ex.id || idx} className="bg-slate-800 p-4 rounded-lg border border-slate-700">
-              {/* Exercise name with search */}
-              <div className="relative mb-3">
-                <label className="block text-xs text-slate-400 mb-1">Exercise Name</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
-                  <input 
-                    type="text" 
-                    value={searchTerms[idx] !== undefined ? searchTerms[idx] : ex.exerciseName}
-                    onChange={(e) => {
-                      setSearchTerms(prev => ({ ...prev, [idx]: e.target.value }));
-                      setShowDropdown(prev => ({ ...prev, [idx]: true }));
-                    }}
-                    onBlur={() => setTimeout(() => setShowDropdown(prev => ({ ...prev, [idx]: false })), 200)}
-                    placeholder="Search exercises..."
-                    className="w-full bg-slate-900 border border-slate-700 rounded pl-9 pr-3 py-2 text-white text-sm"
-                  />
-                </div>
-                {showDropdown[idx] && getFilteredExercises(searchTerms[idx] || '').length > 0 && (
-                  <div className="absolute top-full left-0 right-0 z-10 bg-slate-800 border border-slate-700 rounded-lg mt-1 shadow-xl overflow-hidden">
-                    {getFilteredExercises(searchTerms[idx] || '').map(dictEx => (
-                      <button
-                        key={dictEx.exerciseId}
-                        onClick={() => {
-                          updateExercise(idx, 'exerciseName', dictEx.name);
-                          setSearchTerms(prev => ({ ...prev, [idx]: dictEx.name }));
-                          setShowDropdown(prev => ({ ...prev, [idx]: false }));
-                        }}
-                        className="w-full text-left px-4 py-2.5 hover:bg-slate-700 flex justify-between items-center"
-                      >
-                        <span className="text-white text-sm">{dictEx.name}</span>
-                        <span className="text-xs text-slate-400">{dictEx.category} · {dictEx.targetMuscle}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-3 items-center flex-wrap">
-                <div className="w-16">
-                  <label className="block text-xs text-slate-400 mb-1">Sets</label>
-                  <input type="number" value={ex.sets} onChange={(e) => updateExercise(idx, 'sets', parseInt(e.target.value) || 0)} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-sm" />
-                </div>
-                <div className="w-20">
-                  <label className="block text-xs text-slate-400 mb-1">{ex.isStaticHold ? 'Time (s)' : 'Reps'}</label>
-                  <input type="number" value={ex.reps} onChange={(e) => updateExercise(idx, 'reps', parseInt(e.target.value) || 0)} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-sm" />
-                </div>
-                <div className="w-28">
-                  <label className="block text-xs text-slate-400 mb-1">Weight</label>
-                  <input type="text" value={ex.weight} onChange={(e) => updateExercise(idx, 'weight', e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-sm" />
-                </div>
-                <div className="flex items-center pt-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={ex.isStaticHold} onChange={(e) => updateExercise(idx, 'isStaticHold', e.target.checked)} className="rounded bg-slate-900 border-slate-700 text-indigo-500" />
-                    <span className="text-xs text-slate-300">Time-Based</span>
-                  </label>
-                </div>
-                <button onClick={() => setEditedExercises(prev => prev.filter((_, i) => i !== idx))} className="text-rose-400 hover:text-rose-300 text-xs pt-4">Remove</button>
-              </div>
+        {/* Modal Body */}
+        <div className="p-6 flex-1 overflow-y-auto space-y-5">
+          {/* Blueprint Name & Goal (Always editable, essential for manual blueprints) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-950/70 p-4 rounded-xl border border-slate-800">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                Plan Name
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="e.g. Lower Body Rehab Protocol"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs focus:border-indigo-500 outline-none"
+              />
             </div>
-          ))}
-          <button onClick={addExercise} className="w-full py-2 border border-dashed border-slate-700 rounded-lg text-slate-400 hover:text-slate-200 hover:border-slate-500 text-sm transition-colors">+ Add Exercise</button>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                Target Clinical Goal
+              </label>
+              <input
+                type="text"
+                value={targetGoal}
+                onChange={e => setTargetGoal(e.target.value)}
+                placeholder="e.g. Ankle dorsiflexion & glute activation"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs focus:border-indigo-500 outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Exercise Items List */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Exercises in Plan ({editedExercises.length})
+              </h3>
+              <span className="text-[11px] text-indigo-400">Sets, reps, and hold times auto-calibrate</span>
+            </div>
+
+            {editedExercises.map((ex, idx) => {
+              const isHold = !!ex.isStaticHold;
+              return (
+                <div key={ex.id || idx} className="bg-slate-800/80 p-4 rounded-xl border border-slate-700 space-y-3.5 shadow-sm">
+                  {/* Exercise Name + Search Dropdown */}
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-bold flex items-center justify-center shrink-0 mt-2 border border-indigo-500/30">
+                      {idx + 1}
+                    </div>
+                    <div className="flex-1 relative">
+                      <label className="block text-[11px] text-slate-400 font-medium mb-1">
+                        Exercise Name (Search or type custom)
+                      </label>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                        <input
+                          type="text"
+                          value={searchTerms[idx] !== undefined ? searchTerms[idx] : ex.exerciseName}
+                          onChange={e => {
+                            setSearchTerms(prev => ({ ...prev, [idx]: e.target.value }));
+                            setShowDropdown(prev => ({ ...prev, [idx]: true }));
+                          }}
+                          onFocus={() => setShowDropdown(prev => ({ ...prev, [idx]: true }))}
+                          onBlur={() => setTimeout(() => setShowDropdown(prev => ({ ...prev, [idx]: false })), 250)}
+                          placeholder="Search database or select starter movement..."
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-white text-xs focus:border-indigo-500 outline-none"
+                        />
+                      </div>
+
+                      {/* Dropdown Options */}
+                      {showDropdown[idx] && (
+                        <div className="absolute top-full left-0 right-0 z-30 bg-slate-900 border border-slate-700 rounded-xl mt-1 shadow-2xl max-h-56 overflow-y-auto divide-y divide-slate-800">
+                          {getFilteredExercises(searchTerms[idx] || '').map(dictEx => (
+                            <button
+                              key={dictEx.exerciseId}
+                              type="button"
+                              onClick={() => selectExerciseFromList(idx, dictEx.name)}
+                              className="w-full text-left px-3.5 py-2 hover:bg-slate-800 flex justify-between items-center transition-colors"
+                            >
+                              <div>
+                                <span className="text-white text-xs font-bold block">{dictEx.name}</span>
+                                <span className="text-[10px] text-slate-400">{dictEx.category} · {dictEx.targetMuscle}</span>
+                              </div>
+                              {detectIsStaticHold(dictEx.name) && (
+                                <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30">
+                                  Isometric Hold
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setEditedExercises(prev => prev.filter((_, i) => i !== idx))}
+                      className="text-rose-400 hover:text-rose-300 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors mt-6"
+                      title="Remove exercise"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Parameter Controls: Exercise Type, Sets, Reps/Time, Weight */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-700/60 items-center">
+                    {/* Exercise Type Segmented Control */}
+                    <div>
+                      <label className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">
+                        Execution Type
+                      </label>
+                      <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-700">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateExercise(idx, 'isStaticHold', false);
+                            if (ex.reps > 20) updateExercise(idx, 'reps', 10);
+                          }}
+                          className={`flex-1 py-1 text-[11px] font-bold rounded-md transition-all flex items-center justify-center gap-1 ${
+                            !isHold ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          <Repeat className="w-3 h-3" />
+                          <span>Reps</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateExercise(idx, 'isStaticHold', true);
+                            if (ex.reps <= 15) updateExercise(idx, 'reps', 30);
+                          }}
+                          className={`flex-1 py-1 text-[11px] font-bold rounded-md transition-all flex items-center justify-center gap-1 ${
+                            isHold ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          <Clock className="w-3 h-3" />
+                          <span>Hold</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Sets Stepper & Presets */}
+                    <div>
+                      <label className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">
+                        Sets
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex items-center bg-slate-950 rounded-lg border border-slate-700 p-0.5">
+                          <button
+                            type="button"
+                            onClick={() => updateExercise(idx, 'sets', Math.max(1, (ex.sets || 3) - 1))}
+                            className="w-6 h-6 hover:bg-slate-800 text-slate-300 rounded flex items-center justify-center text-xs font-bold"
+                          >-</button>
+                          <span className="w-8 text-center text-white text-xs font-bold">{ex.sets || 3}</span>
+                          <button
+                            type="button"
+                            onClick={() => updateExercise(idx, 'sets', (ex.sets || 3) + 1)}
+                            className="w-6 h-6 hover:bg-slate-800 text-slate-300 rounded flex items-center justify-center text-xs font-bold"
+                          >+</button>
+                        </div>
+                        <div className="flex gap-1">
+                          {[2, 3, 4].map(s => (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => updateExercise(idx, 'sets', s)}
+                              className={`px-2 py-1 text-[10px] rounded font-bold transition-all ${
+                                ex.sets === s ? 'bg-indigo-500/30 text-indigo-300 border border-indigo-500/40' : 'bg-slate-900 text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Reps or Hold Seconds Stepper & Presets */}
+                    <div>
+                      <label className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">
+                        {isHold ? 'Duration (Seconds)' : 'Repetitions'}
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex items-center bg-slate-950 rounded-lg border border-slate-700 p-0.5">
+                          <button
+                            type="button"
+                            onClick={() => updateExercise(idx, 'reps', Math.max(isHold ? 5 : 1, (ex.reps || 10) - (isHold ? 5 : 1)))}
+                            className="w-6 h-6 hover:bg-slate-800 text-slate-300 rounded flex items-center justify-center text-xs font-bold"
+                          >-</button>
+                          <span className="w-12 text-center text-white text-xs font-bold">
+                            {ex.reps || (isHold ? 30 : 10)}{isHold ? 's' : ''}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateExercise(idx, 'reps', (ex.reps || 10) + (isHold ? 5 : 1))}
+                            className="w-6 h-6 hover:bg-slate-800 text-slate-300 rounded flex items-center justify-center text-xs font-bold"
+                          >+</button>
+                        </div>
+                        <div className="flex gap-1">
+                          {(isHold ? [20, 30, 45] : [8, 10, 12]).map(val => (
+                            <button
+                              key={val}
+                              type="button"
+                              onClick={() => updateExercise(idx, 'reps', val)}
+                              className={`px-1.5 py-1 text-[10px] rounded font-bold transition-all ${
+                                ex.reps === val ? 'bg-amber-500/30 text-amber-300 border border-amber-500/40' : 'bg-slate-900 text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              {val}{isHold ? 's' : ''}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Weight / Resistance Quick Chips & Input */}
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-700/40">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Weight:</span>
+                    <input
+                      type="text"
+                      value={ex.weight || 'Bodyweight'}
+                      onChange={e => updateExercise(idx, 'weight', e.target.value)}
+                      placeholder="e.g. Bodyweight, 10kg"
+                      className="w-28 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-xs outline-none focus:border-indigo-500"
+                    />
+                    <div className="flex gap-1 overflow-x-auto">
+                      {['Bodyweight', 'Dumbbells', 'Barbell', 'Band'].map(w => (
+                        <button
+                          key={w}
+                          type="button"
+                          onClick={() => updateExercise(idx, 'weight', w)}
+                          className={`px-2 py-0.5 text-[10px] rounded font-medium transition-all ${
+                            ex.weight === w ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          {w}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={addExercise}
+            className="w-full py-2.5 border-2 border-dashed border-slate-700 hover:border-indigo-500/60 rounded-xl text-indigo-300 hover:text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 bg-slate-900/40 hover:bg-slate-900"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Another Exercise</span>
+          </button>
         </div>
 
-        <div className="px-6 py-4 border-t border-slate-800 bg-slate-800/50 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-slate-300 hover:text-white transition-colors">Cancel</button>
-          <button onClick={handleSave} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg flex items-center gap-2 transition-colors">
+        {/* Modal Footer */}
+        <div className="px-6 py-4 border-t border-slate-800 bg-slate-800/60 flex justify-between items-center">
+          <button onClick={onClose} className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-indigo-600/30 transition-all"
+          >
             <CheckCircle className="w-4 h-4" />
-            Save Changes
+            <span>{isNew ? 'Create & Activate Plan' : 'Save Plan Changes'}</span>
           </button>
         </div>
       </div>
@@ -1337,6 +1622,69 @@ interface DiagnosticState {
   status: 'idle' | 'needs_pt_analysis' | 'analyzing' | 'awaiting_pt_approval' | 'awaiting_client_result' | 'client_result_submitted' | 'auto_logging' | 'complete';
 }
 
+export function resolveExerciseDetails(
+  nameOrId: string,
+  starterExercisesList: StarterExercise[],
+  exerciseDictionaryList: ExerciseDictionaryData[]
+): StarterExercise {
+  const norm = (nameOrId || '').toLowerCase().trim();
+  
+  // 1. Check starterExercises by id or exact/partial name match
+  const starter = starterExercisesList.find(s => 
+    s.id.toLowerCase() === norm || 
+    s.name.toLowerCase() === norm ||
+    norm.includes(s.name.toLowerCase()) || 
+    s.name.toLowerCase().includes(norm)
+  );
+  if (starter) return starter;
+
+  // 2. Check exerciseDictionary
+  const dict = exerciseDictionaryList.find(d => 
+    d.exerciseId.toLowerCase() === norm || 
+    d.name.toLowerCase() === norm || 
+    norm.includes(d.name.toLowerCase()) || 
+    d.name.toLowerCase().includes(norm)
+  );
+  if (dict) {
+    let commonIssues: { id: string; title: string; icon: string }[] = [];
+    try {
+      commonIssues = JSON.parse(dict.commonIssuesJson || '[]');
+    } catch {}
+    if (!commonIssues.length) {
+      commonIssues = [
+        { id: 'fatigue', title: 'Loss of posture / Early fatigue', icon: '⚡' },
+        { id: 'form-break', title: 'Form breakdown / Joint strain', icon: '🔴' },
+        { id: 'range', title: 'Limited range of motion / tightness', icon: '↔️' }
+      ];
+    }
+    return {
+      id: dict.exerciseId || 'dict-' + dict.name.toLowerCase().replace(/\s+/g, '-'),
+      name: dict.name,
+      category: dict.category || 'Rehabilitation & Strength',
+      videoUrl: dict.videoUrl || 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+      imageUrl: dict.imageUrl || 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=600&auto=format&fit=crop&q=60',
+      musclesTargeted: dict.targetMuscle || 'Target Muscle Group & Core',
+      commonIssues
+    };
+  }
+
+  // 3. Fallback dynamically generated
+  const isHold = detectIsStaticHold(nameOrId);
+  return {
+    id: 'custom-' + norm.replace(/[^a-z0-9]/g, '-'),
+    name: nameOrId,
+    category: isHold ? 'Isometric & Stability' : 'Strength & Mobility',
+    videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+    imageUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=600&auto=format&fit=crop&q=60',
+    musclesTargeted: isHold ? 'Core & Stabilizers' : 'Primary Kinetic Chain',
+    commonIssues: [
+      { id: 'form-break', title: 'Loss of spinal alignment / compensations', icon: '🔴' },
+      { id: 'muscle-fatigue', title: 'Early fatigue / Shaking', icon: '⚡' },
+      { id: 'pain-discomfort', title: 'Joint pinching / Local discomfort', icon: '⚠️' }
+    ]
+  };
+}
+
 function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExercises, exerciseDictionary }: { dbConn: DbConnection | null, rooms: RoomData[], sessionHistory: SessionHistoryData[], blueprints: BlueprintData[], blueprintExercises: BlueprintExerciseData[], exerciseDictionary: ExerciseDictionaryData[] }) {
   const { roomId } = useParams();
   const navigate = useNavigate();
@@ -1364,6 +1712,11 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
   const handleAssignExercise = (ex: StarterExercise) => {
     updateDiagState({ assignedExercise: ex });
     setIsExercisePickerOpen(false);
+  };
+
+  const handleSelectActiveBlueprintExercise = (ex: BlueprintExerciseData) => {
+    const fullEx = resolveExerciseDetails(ex.exerciseName, starterExercises, exerciseDictionary);
+    handleAssignExercise(fullEx);
   };
 
   const activeBlueprint = blueprints.find(b => b.roomId === roomState?.roomId && b.isActiveDayPlan && b.name !== '__DIAGNOSTIC_STATE__');
@@ -1667,13 +2020,31 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
                     </h2>
                     <p className="text-xs text-slate-400 mt-1">Manage and generate blueprints for {roomState.expectedClientName}.</p>
                   </div>
-                  <button 
-                    onClick={() => setIsAIPlannerOpen(true)}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-indigo-600/20 flex items-center gap-2"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    Create AI Blueprint
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => {
+                        const newManualBp: BlueprintData = {
+                          blueprintId: 'new-manual-' + Date.now(),
+                          roomId: roomState.roomId,
+                          name: 'Custom Session Plan',
+                          targetGoal: 'Targeted Movement Training',
+                          isActiveDayPlan: true
+                        };
+                        setEditingBlueprint(newManualBp);
+                      }}
+                      className="bg-slate-800 hover:bg-slate-700 text-white px-3.5 py-2 rounded-lg text-sm font-bold border border-slate-700 flex items-center gap-1.5 transition-all shadow-sm"
+                    >
+                      <Plus className="w-4 h-4 text-indigo-400" />
+                      Create Manual Plan
+                    </button>
+                    <button 
+                      onClick={() => setIsAIPlannerOpen(true)}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-indigo-600/20 flex items-center gap-2 transition-all"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Create AI Blueprint
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid gap-4">
@@ -1681,7 +2052,7 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
                     <div className="text-center py-10 border border-slate-800 border-dashed rounded-xl bg-slate-900/50">
                       <ClipboardList className="w-8 h-8 text-slate-600 mx-auto mb-2" />
                       <p className="text-slate-400 text-sm">No blueprints saved for this client yet.</p>
-                      <p className="text-xs text-slate-500 mt-1">Use the AI Planner to generate one.</p>
+                      <p className="text-xs text-slate-500 mt-1">Create a plan manually or use the AI Planner to generate one.</p>
                     </div>
                   ) : (
                     blueprints.filter(b => b.roomId === roomState.roomId && b.name !== '__DIAGNOSTIC_STATE__').map(bp => {
@@ -2294,19 +2665,55 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
                 </div>
 
                 <div className="mt-2 space-y-4">
-                  <h4 className="text-white font-bold text-sm border-b border-emerald-500/30 pb-2">
-                    {activeBlueprint ? `Execution Tracker: ${activeBlueprint.name}` : 'No Active Plan'}
-                  </h4>
+                  <div className="flex items-center justify-between border-b border-emerald-500/30 pb-2">
+                    <h4 className="text-white font-bold text-sm">
+                      {activeBlueprint ? `Execution Tracker: ${activeBlueprint.name}` : 'No Active Plan'}
+                    </h4>
+                    {activeBlueprint && (
+                      <button
+                        onClick={() => setEditingBlueprint(activeBlueprint)}
+                        className="text-xs bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white px-2.5 py-1 rounded-lg border border-slate-700 flex items-center gap-1 transition-all"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Edit / Add Exercises</span>
+                      </button>
+                    )}
+                  </div>
+
                   {activeBlueprintExercises.length > 0 ? (
-                    activeBlueprintExercises.map(ex => {
+                    activeBlueprintExercises.map((ex, idx) => {
                       const setsData = executionLog[ex.id] || [];
+                      const isCurrent = diagState.assignedExercise?.name?.toLowerCase() === ex.exerciseName.toLowerCase();
                       return (
-                        <div key={ex.id} className="bg-slate-900/80 p-4 rounded-xl border border-slate-800 flex flex-col gap-3">
-                          <div>
-                            <span className="text-white font-bold text-sm">{ex.exerciseName}</span>
-                            <span className="text-slate-400 text-xs ml-2">
-                              Target: {ex.sets} sets × {ex.reps} {ex.isStaticHold ? 'sec hold' : 'reps'} @ {ex.weight}
-                            </span>
+                        <div key={ex.id} className={`p-4 rounded-xl border flex flex-col gap-3 transition-all ${isCurrent ? 'bg-indigo-950/40 border-indigo-500/50 ring-1 ring-indigo-500/30 shadow-md' : 'bg-slate-900/80 border-slate-800'}`}>
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-500 font-mono">#{idx + 1}</span>
+                                <span className="text-white font-bold text-sm">{ex.exerciseName}</span>
+                              </div>
+                              <span className="text-slate-400 text-xs mt-0.5 block">
+                                Target: {ex.sets} sets × {ex.reps} {ex.isStaticHold ? 'sec hold' : 'reps'} @ {ex.weight}
+                              </span>
+                            </div>
+
+                            <div>
+                              {isCurrent ? (
+                                <div className="flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                  <span>Active on Client Screen</span>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => handleSelectActiveBlueprintExercise(ex)}
+                                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-md shadow-indigo-600/20 hover:shadow-indigo-600/30 transition-all cursor-pointer"
+                                  title="Push video and movement guide for this exercise to the client's screen"
+                                >
+                                  <PlayCircle className="w-3.5 h-3.5" />
+                                  <span>Select & Push to Client</span>
+                                </button>
+                              )}
+                            </div>
                           </div>
                           
                           <div className="space-y-2">
@@ -2349,7 +2756,7 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
                     })
                   ) : (
                     <div className="text-slate-400 text-xs py-4 text-center border border-slate-800 border-dashed rounded-lg bg-slate-900/40">
-                      No blueprint assigned. Go to the Session Planner tab to set an Active Day Plan.
+                      No blueprint assigned. Go to the Session Planner tab to set an Active Day Plan or create one manually.
                     </div>
                   )}
                 </div>
@@ -2454,7 +2861,19 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
 // -------------------------------------------------------------
 // Client Exercise View Sub-Component (for CONNECTED state)
 // -------------------------------------------------------------
-function ClientExerciseView({ roomState, dbConn, blueprints }: { roomState: RoomData, dbConn: DbConnection | null, blueprints: BlueprintData[] }) {
+function ClientExerciseView({ 
+  roomState, 
+  dbConn, 
+  blueprints,
+  blueprintExercises,
+  exerciseDictionary: _exerciseDictionary
+}: { 
+  roomState: RoomData, 
+  dbConn: DbConnection | null, 
+  blueprints: BlueprintData[],
+  blueprintExercises: BlueprintExerciseData[],
+  exerciseDictionary: ExerciseDictionaryData[]
+}) {
   const [issueInput, setIssueInput] = useState('');
   const [submittedIssue, setSubmittedIssue] = useState('');
   const [clientResult, setClientResult] = useState('');
@@ -2463,6 +2882,11 @@ function ClientExerciseView({ roomState, dbConn, blueprints }: { roomState: Room
   // Sync diagnostic state from SpaceTimeDB blueprint broadcast (external PC support)
   const diagBlueprint = blueprints.find(b => b.roomId === roomState.roomId && b.name === '__DIAGNOSTIC_STATE__');
   const [clientDiagState, setClientDiagState] = useState<DiagnosticState | null>(null);
+
+  const activeBlueprint = blueprints.find(b => b.roomId === roomState.roomId && b.isActiveDayPlan && b.name !== '__DIAGNOSTIC_STATE__');
+  const planExercises = activeBlueprint 
+    ? blueprintExercises.filter(e => e.blueprintId === activeBlueprint.blueprintId).sort((a,b) => a.orderIndex - b.orderIndex) 
+    : [];
 
   useEffect(() => {
     if (diagBlueprint?.targetGoal) {
@@ -2502,6 +2926,9 @@ function ClientExerciseView({ roomState, dbConn, blueprints }: { roomState: Room
   };
 
   const currentExercise = clientDiagState?.assignedExercise;
+  const currentPlanExIndex = currentExercise 
+    ? planExercises.findIndex(e => e.exerciseName.toLowerCase() === currentExercise.name.toLowerCase()) 
+    : -1;
 
   return (
     <div className="flex flex-col gap-5">
@@ -2515,6 +2942,53 @@ function ClientExerciseView({ roomState, dbConn, blueprints }: { roomState: Room
           <p className="text-xs text-slate-300">Connected with {roomState.ptName}</p>
         </div>
       </div>
+
+      {/* Session Plan Progress Header (Stepper) - shows session progress across exercises */}
+      {activeBlueprint && planExercises.length > 0 && (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="w-4 h-4 text-indigo-400" />
+              <span className="text-xs font-bold text-white">{activeBlueprint.name}</span>
+            </div>
+            <span className="text-[11px] text-indigo-300 font-semibold bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
+              {currentPlanExIndex >= 0 ? `Exercise ${currentPlanExIndex + 1} of ${planExercises.length}` : `${planExercises.length} Total Exercises`}
+            </span>
+          </div>
+
+          {/* Compact exercise chips showing status */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            {planExercises.map((pEx, idx) => {
+              const isActive = currentPlanExIndex === idx;
+              const isDone = currentPlanExIndex > idx;
+              return (
+                <div 
+                  key={pEx.id}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all border shrink-0 ${
+                    isActive 
+                      ? 'bg-indigo-600/30 border-indigo-500 text-white font-bold ring-1 ring-indigo-500 shadow-sm' 
+                      : isDone 
+                        ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-400' 
+                        : 'bg-slate-950/80 border-slate-800 text-slate-400'
+                  }`}
+                >
+                  <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                    isActive ? 'bg-indigo-500 text-white' : isDone ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                  }`}>
+                    {isDone ? '✓' : idx + 1}
+                  </span>
+                  <span>{pEx.exerciseName}</span>
+                  {isActive && (
+                    <span className="text-[9px] bg-indigo-400/20 text-indigo-300 px-1 rounded uppercase tracking-wider font-semibold">
+                      Current
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ─── CASE A: PT HAS NOT YET ASSIGNED EXERCISE ─── */}
       {!currentExercise ? (
@@ -2699,7 +3173,23 @@ function ClientExerciseView({ roomState, dbConn, blueprints }: { roomState: Room
 // -------------------------------------------------------------
 // Client Mobile View Component
 // -------------------------------------------------------------
-function ClientView({ isConnected, dbConn, rooms, sessionHistory, blueprints }: { isConnected: boolean, dbConn: DbConnection | null, rooms: RoomData[], sessionHistory: SessionHistoryData[], blueprints: BlueprintData[] }) {
+function ClientView({ 
+  isConnected, 
+  dbConn, 
+  rooms, 
+  sessionHistory, 
+  blueprints,
+  blueprintExercises,
+  exerciseDictionary
+}: { 
+  isConnected: boolean, 
+  dbConn: DbConnection | null, 
+  rooms: RoomData[], 
+  sessionHistory: SessionHistoryData[], 
+  blueprints: BlueprintData[],
+  blueprintExercises: BlueprintExerciseData[],
+  exerciseDictionary: ExerciseDictionaryData[]
+}) {
   const { roomToken } = useParams();
   const [inputName, setInputName] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'session' | 'homework'>('session');
@@ -2853,7 +3343,13 @@ function ClientView({ isConnected, dbConn, rooms, sessionHistory, blueprints }: 
 
             {/* State 3: Live Session Active - Rich Exercise View */}
             {roomState.clientStatus === 'CONNECTED' && (
-              <ClientExerciseView roomState={roomState} dbConn={dbConn} blueprints={blueprints} />
+              <ClientExerciseView 
+                roomState={roomState} 
+                dbConn={dbConn} 
+                blueprints={blueprints}
+                blueprintExercises={blueprintExercises}
+                exerciseDictionary={exerciseDictionary}
+              />
             )}
           </div>
         )}
@@ -3028,7 +3524,7 @@ export function App() {
         <Route path="/" element={<PTDashboard rooms={rooms} />} />
         <Route path="/pt" element={<PTDashboard rooms={rooms} />} />
         <Route path="/pt/room/:roomId" element={<PTRoomView dbConn={dbConn} rooms={rooms} sessionHistory={sessionHistory} blueprints={blueprints} blueprintExercises={blueprintExercises} exerciseDictionary={exerciseDictionary} />} />
-        <Route path="/client/:roomToken" element={<ClientView isConnected={isConnected} dbConn={dbConn} rooms={rooms} sessionHistory={sessionHistory} blueprints={blueprints} />} />
+        <Route path="/client/:roomToken" element={<ClientView isConnected={isConnected} dbConn={dbConn} rooms={rooms} sessionHistory={sessionHistory} blueprints={blueprints} blueprintExercises={blueprintExercises} exerciseDictionary={exerciseDictionary} />} />
         <Route path="*" element={<PTDashboard rooms={rooms} />} />
       </Routes>
     </div>
