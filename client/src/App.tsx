@@ -8,12 +8,14 @@ import {
 } from 'lucide-react';
 
 // -------------------------------------------------------
-// Gemini API Integration (free Gemini 1.5 Flash)
+// AI API Integration (Supports OpenAI gpt-4o & Gemini 1.5 Flash)
 // -------------------------------------------------------
+const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY || '';
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
 const GEMINI_MODEL = 'gemini-1.5-flash-latest';
+const OPENAI_MODEL = 'gpt-4o';
 
-async function callGeminiDiagnostic(issueText: string, clientName: string, clientGoal: string): Promise<{ potentialCause: string; confidence: string; ptOptions: { id: string; label: string; instruction: string; expectedOutcome: string }[]; outOfScope?: string }> {
+async function callLLMDiagnostic(issueText: string, clientName: string, clientGoal: string): Promise<{ potentialCause: string; confidence: string; ptOptions: { id: string; label: string; instruction: string; expectedOutcome: string }[]; outOfScope?: string }> {
   const systemPrompt = `You are WikiGem, a biomechanics AI assistant for physiotherapists. You use a clinical decision tree to diagnose movement issues and prescribe diagnostic tests.
 
 Client: ${clientName}
@@ -41,37 +43,67 @@ Respond ONLY in this JSON format (no markdown):
 
 Analyze this and provide diagnostic options according to your WikiGem tree.`;
 
-  try {
-    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-        generationConfig: { temperature: 0.3, responseMimeType: 'application/json' }
-      })
-    });
-    const data = await resp.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-    return JSON.parse(text);
-  } catch (e) {
-    console.error('Gemini API error:', e);
-    // Fallback demo response
-    return {
-      potentialCause: 'Based on the reported issue, the most likely cause is limited ankle dorsiflexion mobility preventing full squat depth, possibly combined with tight hip flexors. Both can cause compensatory heel lifting and forward trunk lean.',
-      confidence: 'High',
-      ptOptions: [
-        { id: 'opt1', label: 'Heel-Elevated Squat Test (Ankle Mobility)', instruction: 'Place small weight plates or a folded mat under both heels (approx 2cm elevation). Re-attempt the squat to full depth. Focus on keeping chest up.', expectedOutcome: 'If depth significantly improves with heels elevated, confirms ankle mobility restriction.' },
-        { id: 'opt2', label: 'Thomas Test (Hip Flexor Assessment)', instruction: 'Lie on edge of table. Pull both knees to chest, then lower one leg down. Observe if the lowered leg stays flat or knee bends past 90°.', expectedOutcome: 'If hip flexor is tight, the leg will not stay flat - confirms hip mobility as the primary restrictor.' }
-      ]
-    };
+  // 1. Try OpenAI if API Key present
+  if (OPENAI_API_KEY) {
+    try {
+      const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENAI_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: OPENAI_MODEL,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.3
+        })
+      });
+      const data = await resp.json();
+      const text = data?.choices?.[0]?.message?.content || '{}';
+      return JSON.parse(text);
+    } catch (e) {
+      console.error('OpenAI API error:', e);
+    }
   }
+
+  // 2. Try Gemini if API Key present
+  if (GEMINI_API_KEY) {
+    try {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+          generationConfig: { temperature: 0.3, responseMimeType: 'application/json' }
+        })
+      });
+      const data = await resp.json();
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+      return JSON.parse(text);
+    } catch (e) {
+      console.error('Gemini API error:', e);
+    }
+  }
+
+  // 3. Fallback demo response
+  return {
+    potentialCause: 'Based on the reported issue, the most likely cause is limited ankle dorsiflexion mobility preventing full squat depth, possibly combined with tight hip flexors. Both can cause compensatory heel lifting and forward trunk lean.',
+    confidence: 'High',
+    ptOptions: [
+      { id: 'opt1', label: 'Heel-Elevated Squat Test (Ankle Mobility)', instruction: 'Place small weight plates or a folded mat under both heels (approx 2cm elevation). Re-attempt the squat to full depth. Focus on keeping chest up.', expectedOutcome: 'If depth significantly improves with heels elevated, confirms ankle mobility restriction.' },
+      { id: 'opt2', label: 'Thomas Test (Hip Flexor Assessment)', instruction: 'Lie on edge of table. Pull both knees to chest, then lower one leg down. Observe if the lowered leg stays flat or knee bends past 90°.', expectedOutcome: 'If hip flexor is tight, the leg will not stay flat - confirms hip mobility as the primary restrictor.' }
+    ]
+  };
 }
 
-async function callGeminiAutoLog(issue: string, approvedOption: string, clientResult: string, clientName: string): Promise<{ patientLogNote: string; suggestedExercise: string; suggestedExerciseSets: number; suggestedExerciseReps: number; conclusion: string }> {
-  const prompt = `You are WikiGem, a biomechanics AI. Generate a clinical patient log entry and exercise recommendation based on the following diagnostic session outcome:
-
-Client: ${clientName}
+async function callLLMAutoLog(issue: string, approvedOption: string, clientResult: string, clientName: string): Promise<{ patientLogNote: string; suggestedExercise: string; suggestedExerciseSets: number; suggestedExerciseReps: number; conclusion: string }> {
+  const systemPrompt = `You are WikiGem, a biomechanics AI. Generate a clinical patient log entry and exercise recommendation based on the diagnostic session outcome. Respond ONLY in valid JSON.`;
+  const prompt = `Client: ${clientName}
 Issue Logged: ${issue}
 Diagnostic Test Approved by PT: ${approvedOption}
 Client Result / Feedback: ${clientResult}
@@ -85,27 +117,170 @@ Respond ONLY in this JSON format (no markdown):
   "suggestedExerciseReps": 30
 }`;
 
-  try {
-    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.2, responseMimeType: 'application/json' }
-      })
-    });
-    const data = await resp.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-    return JSON.parse(text);
-  } catch (e) {
-    return {
-      conclusion: 'Ankle mobility restriction confirmed as primary limiting factor.',
-      patientLogNote: `${clientName} demonstrated significantly improved squat depth with heel elevation, confirming ankle dorsiflexion restriction. Hip flexor assessment ruled out as primary cause. Ankle mobility stretching protocol added to session blueprint.`,
-      suggestedExercise: 'Ankle Dorsiflexion Stretch (Knee-to-Wall)',
-      suggestedExerciseSets: 3,
-      suggestedExerciseReps: 45
-    };
+  if (OPENAI_API_KEY) {
+    try {
+      const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENAI_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: OPENAI_MODEL,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: prompt }
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.2
+        })
+      });
+      const data = await resp.json();
+      const text = data?.choices?.[0]?.message?.content || '{}';
+      return JSON.parse(text);
+    } catch (e) {
+      console.error('OpenAI AutoLog error:', e);
+    }
   }
+
+  if (GEMINI_API_KEY) {
+    try {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.2, responseMimeType: 'application/json' }
+        })
+      });
+      const data = await resp.json();
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+      return JSON.parse(text);
+    } catch (e) {
+      console.error('Gemini AutoLog error:', e);
+    }
+  }
+
+  return {
+    conclusion: 'Ankle mobility restriction confirmed as primary limiting factor.',
+    patientLogNote: `${clientName} demonstrated significantly improved squat depth with heel elevation, confirming ankle dorsiflexion restriction. Hip flexor assessment ruled out as primary cause. Ankle mobility stretching protocol added to session blueprint.`,
+    suggestedExercise: 'Ankle Dorsiflexion Stretch (Knee-to-Wall)',
+    suggestedExerciseSets: 3,
+    suggestedExerciseReps: 45
+  };
+}
+
+async function callLLMBlueprintPlanner(promptText: string): Promise<{
+  name: string;
+  targetGoal: string;
+  warning: string | null;
+  exercises: { exerciseName: string; sets: number; reps: number | string; weight: string; isStaticHold: boolean }[];
+}> {
+  const systemPrompt = `You are WikiGem, an AI Blueprint Planner for Physiotherapists.
+Your job is to generate a structured workout session blueprint based on the PT's prompt.
+You must return the output in a strict JSON format.
+
+If you detect the PT's prompt contradicts biomechanics goals, provide a warning. Specifically check for these two scenarios:
+1. If the PT prompt mentions user goal is plyometrics or force generation BUT includes heavy lifting, add a warning: "Goal Alignment Reminder: User goal is plyometrics/force generation but prompt suggests heavy lifting. The plan has been adjusted to emphasize power." and adjust the exercises accordingly (e.g. bodyweight or light jumps).
+2. If the prompt mentions a weak tendon or prior tendon issues, add a warning: "Client faced issues with this exercise earlier due to weak tendon. Added tendon strengthening isometric exercises this week." and include isometric holds in the exercises (set isStaticHold: true, and reps can be time like "45s").
+
+Respond ONLY in this JSON format (no markdown):
+{
+  "name": "Name of the Session (e.g. Plyometric Power Phase)",
+  "targetGoal": "The original goal stated",
+  "warning": "Any warning string if applicable, otherwise null",
+  "exercises": [
+    {
+      "exerciseName": "Name of exercise",
+      "sets": 3,
+      "reps": "10",
+      "weight": "Bodyweight or % or Lbs",
+      "isStaticHold": false
+    }
+  ]
+}`;
+
+  if (OPENAI_API_KEY) {
+    try {
+      const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENAI_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: OPENAI_MODEL,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: promptText }
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.3
+        })
+      });
+      const data = await resp.json();
+      const text = data?.choices?.[0]?.message?.content || '{}';
+      return JSON.parse(text);
+    } catch (e) {
+      console.error('OpenAI Blueprint error:', e);
+    }
+  }
+
+  if (GEMINI_API_KEY) {
+    try {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: 'user', parts: [{ text: promptText }] }],
+          generationConfig: { temperature: 0.3, responseMimeType: 'application/json' }
+        })
+      });
+      const data = await resp.json();
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+      return JSON.parse(text);
+    } catch (e) {
+      console.error('Gemini Blueprint error:', e);
+    }
+  }
+
+  // Fallback demo response
+  const lowerPrompt = promptText.toLowerCase();
+  let fallback: any = {
+    name: "AI Generated Session",
+    targetGoal: promptText,
+    warning: null,
+    exercises: []
+  };
+
+  if (lowerPrompt.includes("plyometric") || lowerPrompt.includes("force")) {
+    if (lowerPrompt.includes("heavy") || lowerPrompt.includes("lifting")) {
+      fallback.warning = "Goal Alignment Reminder: User goal is plyometrics/force generation but prompt suggests heavy lifting. The plan has been adjusted to emphasize power over maximal strength.";
+    }
+    fallback.name = "Plyometric Power Phase";
+    fallback.exercises = [
+      { exerciseName: "Box Jump", sets: 4, reps: 5, weight: "Bodyweight", isStaticHold: false },
+      { exerciseName: "Lateral Bound (Skater)", sets: 3, reps: 8, weight: "Bodyweight", isStaticHold: false },
+      { exerciseName: "Push Press", sets: 4, reps: 6, weight: "Moderate", isStaticHold: false },
+    ];
+  } else if (lowerPrompt.includes("tendon") || lowerPrompt.includes("isometric")) {
+    fallback.warning = "Client faced issues with this exercise earlier due to weak tendon. Added tendon strengthening isometric exercises this week.";
+    fallback.name = "Tendon Rehab & Strengthening";
+    fallback.exercises = [
+      { exerciseName: "Bodyweight Squat", sets: 3, reps: "45s", weight: "Bodyweight", isStaticHold: true },
+      { exerciseName: "Calf Raises", sets: 3, reps: "30s", weight: "Bodyweight", isStaticHold: true },
+      { exerciseName: "Straight Leg Raise", sets: 3, reps: 15, weight: "Light", isStaticHold: false }
+    ];
+  } else {
+    fallback.name = "General Hypertrophy";
+    fallback.exercises = [
+      { exerciseName: "Barbell Back Squat", sets: 4, reps: 10, weight: "70%", isStaticHold: false },
+      { exerciseName: "Romanian Deadlift (RDL)", sets: 3, reps: 12, weight: "60%", isStaticHold: false },
+      { exerciseName: "Leg Extension", sets: 3, reps: 15, weight: "Moderate", isStaticHold: false }
+    ];
+  }
+  return fallback;
 }
 
 interface RoomData {
@@ -256,58 +431,29 @@ function AIPlannerModal({
 
   if (!isOpen) return null;
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!prompt.trim()) return;
     setIsGenerating(true);
     setWarning(null);
     setGeneratedBlueprint(null);
 
-    // Simulate AI delay
-    setTimeout(() => {
-      const lowerPrompt = prompt.toLowerCase();
-      let newBlueprint: any = {
-        name: "AI Generated Session",
-        targetGoal: prompt,
-        exercises: []
-      };
+    const result = await callLLMBlueprintPlanner(prompt);
+    
+    // Ensure exercises have orderIndex and ID for UI
+    const exercisesWithIds = result.exercises.map((ex: any, idx: number) => ({
+      ...ex,
+      orderIndex: idx,
+      id: `gen-${Date.now()}-${idx}`
+    }));
 
-      if (lowerPrompt.includes("plyometric") || lowerPrompt.includes("force")) {
-        if (lowerPrompt.includes("heavy") || lowerPrompt.includes("lifting")) {
-          setWarning("Goal Alignment Reminder: User goal is plyometrics/force generation but prompt suggests heavy lifting. The plan has been adjusted to emphasize power over maximal strength.");
-        }
-        newBlueprint.name = "Plyometric Power Phase";
-        newBlueprint.exercises = [
-          { exerciseName: "Box Jump", sets: 4, reps: 5, weight: "Bodyweight", isStaticHold: false },
-          { exerciseName: "Lateral Bound (Skater)", sets: 3, reps: 8, weight: "Bodyweight", isStaticHold: false },
-          { exerciseName: "Push Press", sets: 4, reps: 6, weight: "Moderate", isStaticHold: false },
-        ];
-      } else if (lowerPrompt.includes("tendon") || lowerPrompt.includes("isometric")) {
-        setWarning("Client faced issues with this exercise earlier due to weak tendon. Added tendon strengthening isometric exercises this week.");
-        newBlueprint.name = "Tendon Rehab & Strengthening";
-        newBlueprint.exercises = [
-          { exerciseName: "Bodyweight Squat", sets: 3, reps: 45, weight: "Bodyweight", isStaticHold: true, orderIndex: 0 },
-          { exerciseName: "Calf Raises", sets: 3, reps: 30, weight: "Bodyweight", isStaticHold: true, orderIndex: 1 },
-          { exerciseName: "Straight Leg Raise", sets: 3, reps: 15, weight: "Light", isStaticHold: false, orderIndex: 2 }
-        ];
-      } else {
-        newBlueprint.name = "General Hypertrophy";
-        newBlueprint.exercises = [
-          { exerciseName: "Barbell Back Squat", sets: 4, reps: 10, weight: "70%", isStaticHold: false },
-          { exerciseName: "Romanian Deadlift (RDL)", sets: 3, reps: 12, weight: "60%", isStaticHold: false },
-          { exerciseName: "Leg Extension", sets: 3, reps: 15, weight: "Moderate", isStaticHold: false }
-        ];
-      }
-      
-      // Ensure exercises have orderIndex and ID
-      newBlueprint.exercises = newBlueprint.exercises.map((ex: any, idx: number) => ({
-        ...ex,
-        orderIndex: idx,
-        id: `gen-${Date.now()}-${idx}`
-      }));
-
-      setGeneratedBlueprint(newBlueprint);
-      setIsGenerating(false);
-    }, 2000);
+    setWarning(result.warning);
+    setGeneratedBlueprint({
+      name: result.name,
+      targetGoal: result.targetGoal,
+      exercises: exercisesWithIds
+    });
+    
+    setIsGenerating(false);
   };
 
   const handleSave = () => {
@@ -785,7 +931,7 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
     if (!issueText.trim()) return;
     updateDiagState({ issueText, loggedBy, status: 'analyzing', analysis: null, approvedOption: null, clientResult: '', autoLogResult: null });
     setActiveTab('console');
-    const result = await callGeminiDiagnostic(issueText, roomState?.expectedClientName || 'Client', 'Squat Rehab / Biomechanics Improvement');
+    const result = await callLLMDiagnostic(issueText, roomState?.expectedClientName || 'Client', 'Squat Rehab / Biomechanics Improvement');
     updateDiagState({ analysis: result, status: 'awaiting_pt_approval' });
   };
 
@@ -796,7 +942,7 @@ function PTRoomView({ dbConn, rooms, sessionHistory, blueprints, blueprintExerci
   const handleAutoLog = async () => {
     if (!diagState.approvedOption || !diagState.clientResult.trim()) return;
     updateDiagState({ status: 'auto_logging' });
-    const result = await callGeminiAutoLog(
+    const result = await callLLMAutoLog(
       diagState.issueText, 
       diagState.approvedOption.label,
       diagState.clientResult,
