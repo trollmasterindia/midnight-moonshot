@@ -11,8 +11,10 @@ import {
 } from "spacetimedb";
 
 export default {
+  blueprintId: __t.string(),
   roomId: __t.string(),
-  notes: __t.string(),
-  timestamp: __t.string(),
-  completedExercisesJson: __t.string(),
+  name: __t.string(),
+  targetGoal: __t.string(),
+  isActiveDayPlan: __t.bool(),
+  exercisesJson: __t.string(),
 };

@@ -222,6 +222,7 @@ function PTRoomView({ dbConn, rooms }: { dbConn: DbConnection | null, rooms: Roo
       roomId: roomState.roomId,
       notes: notesInput.trim() || 'Client completed squat rehab protocol. Good form stability.',
       timestamp: timestamp,
+      completedExercisesJson: "[]",
     });
     setIsEndingSession(false);
     navigate('/pt');

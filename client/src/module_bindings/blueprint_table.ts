@@ -10,9 +10,10 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default {
-  roomId: __t.string(),
-  notes: __t.string(),
-  timestamp: __t.string(),
-  completedExercisesJson: __t.string(),
-};
+export default __t.row({
+  blueprintId: __t.string().primaryKey().name("blueprint_id"),
+  roomId: __t.string().name("room_id"),
+  name: __t.string(),
+  targetGoal: __t.string().name("target_goal"),
+  isActiveDayPlan: __t.bool().name("is_active_day_plan"),
+});

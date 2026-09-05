@@ -38,16 +38,42 @@ import ApproveClientEntryReducer from "./approve_client_entry_reducer";
 import EndSessionReducer from "./end_session_reducer";
 import RequestRoomEntryReducer from "./request_room_entry_reducer";
 import ResetRoomReducer from "./reset_room_reducer";
+import SaveBlueprintReducer from "./save_blueprint_reducer";
 
 // Import all procedure arg schemas
 
 // Import all table schema definitions
+import BlueprintRow from "./blueprint_table";
+import BlueprintExerciseRow from "./blueprint_exercise_table";
 import RoomRow from "./room_table";
+import SessionHistoryRow from "./session_history_table";
 
 /** Type-only namespace exports for generated type groups. */
 
 /** The schema information for all tables in this module. This is defined the same was as the tables would have been defined in the server. */
 const tablesSchema = __schema({
+  blueprint: __table({
+    name: 'blueprint',
+    indexes: [
+      { accessor: 'blueprintId', name: 'blueprint_blueprint_id_idx_btree', algorithm: 'btree', columns: [
+        'blueprintId',
+      ] },
+    ],
+    constraints: [
+      { name: 'blueprint_blueprint_id_key', constraint: 'unique', columns: ['blueprintId'] },
+    ],
+  }, BlueprintRow),
+  blueprintExercise: __table({
+    name: 'blueprint_exercise',
+    indexes: [
+      { accessor: 'id', name: 'blueprint_exercise_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'blueprint_exercise_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, BlueprintExerciseRow),
   room: __table({
     name: 'room',
     indexes: [
@@ -59,6 +85,17 @@ const tablesSchema = __schema({
       { name: 'room_room_id_key', constraint: 'unique', columns: ['roomId'] },
     ],
   }, RoomRow),
+  sessionHistory: __table({
+    name: 'session_history',
+    indexes: [
+      { accessor: 'logId', name: 'session_history_log_id_idx_btree', algorithm: 'btree', columns: [
+        'logId',
+      ] },
+    ],
+    constraints: [
+      { name: 'session_history_log_id_key', constraint: 'unique', columns: ['logId'] },
+    ],
+  }, SessionHistoryRow),
 });
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
@@ -67,28 +104,76 @@ const reducersSchema = __reducers(
   __reducerSchema("end_session", EndSessionReducer),
   __reducerSchema("request_room_entry", RequestRoomEntryReducer),
   __reducerSchema("reset_room", ResetRoomReducer),
+  __reducerSchema("save_blueprint", SaveBlueprintReducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
 const proceduresSchema = __procedures(
 );
 
+type __SchemaWithTableAccessorAliases = Omit<typeof tablesSchema.schemaType, "tables"> & {
+  tables: typeof tablesSchema.schemaType.tables & {
+    /** @deprecated Use `blueprintExercise` instead. This alias will be removed in the next major version. */
+    readonly "blueprint_exercise": Omit<typeof tablesSchema.schemaType.tables["blueprintExercise"], "accessorName"> & { readonly accessorName: "blueprint_exercise" };
+    /** @deprecated Use `sessionHistory` instead. This alias will be removed in the next major version. */
+    readonly "session_history": Omit<typeof tablesSchema.schemaType.tables["sessionHistory"], "accessorName"> & { readonly accessorName: "session_history" };
+  };
+};
+
 /** The remote SpacetimeDB module schema, both runtime and type information. */
 const REMOTE_MODULE = {
   versionInfo: {
     cliVersion: "2.10.0" as const,
   },
-  tables: tablesSchema.schemaType.tables,
+  tables: tablesSchema.schemaType.tables as __SchemaWithTableAccessorAliases["tables"],
   reducers: reducersSchema.reducersType.reducers,
   ...proceduresSchema,
 } satisfies __RemoteModule<
-  typeof tablesSchema.schemaType,
+  __SchemaWithTableAccessorAliases,
   typeof reducersSchema.reducersType,
   typeof proceduresSchema
 >;
 
+const tableAccessorAliases = {
+  "blueprint_exercise": "blueprintExercise",
+  "session_history": "sessionHistory",
+} as const;
+
+function __withTableAccessorAliases<T extends object>(target: T, freeze = false): T {
+  const out = Object.create(Object.getPrototypeOf(target)) as T & Record<string, unknown>;
+  Object.defineProperties(out, Object.getOwnPropertyDescriptors(target));
+  for (const [deprecatedAccessor, targetAccessor] of Object.entries(tableAccessorAliases)) {
+    if (deprecatedAccessor in out) {
+      continue;
+    }
+    Object.defineProperty(out, deprecatedAccessor, {
+      enumerable: true,
+      configurable: false,
+      get: () => out[targetAccessor],
+    });
+  }
+  return freeze ? Object.freeze(out) : out;
+}
+
+type __DbViewBase = __DbConnectionImpl<typeof REMOTE_MODULE>["db"];
+export type DbView = __DbViewBase & {
+  /** @deprecated Use `blueprintExercise` instead. This alias will be removed in the next major version. */
+  readonly "blueprint_exercise": __DbViewBase["blueprintExercise"];
+  /** @deprecated Use `sessionHistory` instead. This alias will be removed in the next major version. */
+  readonly "session_history": __DbViewBase["sessionHistory"];
+};
+
+type __TablesBase = __QueryBuilder<typeof tablesSchema.schemaType>;
+export type Tables = __TablesBase & {
+  /** @deprecated Use `blueprintExercise` instead. This alias will be removed in the next major version. */
+  readonly "blueprint_exercise": __TablesBase["blueprintExercise"];
+  /** @deprecated Use `sessionHistory` instead. This alias will be removed in the next major version. */
+  readonly "session_history": __TablesBase["sessionHistory"];
+};
+
 /** The tables available in this remote SpacetimeDB module. Each table reference doubles as a query builder. */
-export const tables: __QueryBuilder<typeof tablesSchema.schemaType> = __makeQueryBuilder(tablesSchema.schemaType);
+const tablesBase: __TablesBase = __makeQueryBuilder(tablesSchema.schemaType);
+export const tables: Tables = __withTableAccessorAliases(tablesBase, true) as Tables;
 
 /** The reducers available in this remote SpacetimeDB module. */
 export const reducers = __convertToAccessorMap(reducersSchema.reducersType.reducers);
@@ -97,13 +182,13 @@ export const reducers = __convertToAccessorMap(reducersSchema.reducersType.reduc
 export const procedures = __convertToAccessorMap(proceduresSchema.procedures);
 
 /** The context type returned in callbacks for all possible events. */
-export type EventContext = __EventContextInterface<typeof REMOTE_MODULE>;
+export type EventContext = Omit<__EventContextInterface<typeof REMOTE_MODULE>, "db"> & { db: DbView };
 /** The context type returned in callbacks for reducer events. */
-export type ReducerEventContext = __ReducerEventContextInterface<typeof REMOTE_MODULE>;
+export type ReducerEventContext = Omit<__ReducerEventContextInterface<typeof REMOTE_MODULE>, "db"> & { db: DbView };
 /** The context type returned in callbacks for subscription events. */
-export type SubscriptionEventContext = __SubscriptionEventContextInterface<typeof REMOTE_MODULE>;
+export type SubscriptionEventContext = Omit<__SubscriptionEventContextInterface<typeof REMOTE_MODULE>, "db"> & { db: DbView };
 /** The context type returned in callbacks for error events. */
-export type ErrorContext = __ErrorContextInterface<typeof REMOTE_MODULE>;
+export type ErrorContext = Omit<__ErrorContextInterface<typeof REMOTE_MODULE>, "db"> & { db: DbView };
 /** The subscription handle type to manage active subscriptions created from a {@link SubscriptionBuilder}. */
 export type SubscriptionHandle = __SubscriptionHandleImpl<typeof REMOTE_MODULE>;
 
@@ -115,6 +200,13 @@ export class DbConnectionBuilder extends __DbConnectionBuilder<DbConnection> {}
 
 /** The typed database connection to manage connections to the remote SpacetimeDB instance. This class has type information specific to the generated module. */
 export class DbConnection extends __DbConnectionImpl<typeof REMOTE_MODULE> {
+  declare db: DbView;
+
+  constructor(config: __DbConnectionConfig<typeof REMOTE_MODULE>) {
+    super(config);
+    this.db = __withTableAccessorAliases(this.db) as DbView;
+  }
+
   /** Creates a new {@link DbConnectionBuilder} to configure and connect to the remote SpacetimeDB instance. */
   static builder = (): DbConnectionBuilder => {
     return new DbConnectionBuilder(REMOTE_MODULE, (config: __DbConnectionConfig<typeof REMOTE_MODULE>) => new DbConnection(config));

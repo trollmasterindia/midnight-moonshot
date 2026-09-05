@@ -10,9 +10,11 @@ import ApproveClientEntryReducer from "../approve_client_entry_reducer";
 import EndSessionReducer from "../end_session_reducer";
 import RequestRoomEntryReducer from "../request_room_entry_reducer";
 import ResetRoomReducer from "../reset_room_reducer";
+import SaveBlueprintReducer from "../save_blueprint_reducer";
 
 export type ApproveClientEntryParams = __Infer<typeof ApproveClientEntryReducer>;
 export type EndSessionParams = __Infer<typeof EndSessionReducer>;
 export type RequestRoomEntryParams = __Infer<typeof RequestRoomEntryReducer>;
 export type ResetRoomParams = __Infer<typeof ResetRoomReducer>;
+export type SaveBlueprintParams = __Infer<typeof SaveBlueprintReducer>;
 

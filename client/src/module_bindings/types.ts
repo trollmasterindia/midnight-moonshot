@@ -10,6 +10,28 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
+export const Blueprint = __t.object("Blueprint", {
+  blueprintId: __t.string(),
+  roomId: __t.string(),
+  name: __t.string(),
+  targetGoal: __t.string(),
+  isActiveDayPlan: __t.bool(),
+});
+export type Blueprint = __Infer<typeof Blueprint>;
+
+export const BlueprintExercise = __t.object("BlueprintExercise", {
+  id: __t.string(),
+  blueprintId: __t.string(),
+  exerciseName: __t.string(),
+  warmupFor: __t.string(),
+  sets: __t.u32(),
+  reps: __t.u32(),
+  weight: __t.string(),
+  isStaticHold: __t.bool(),
+  orderIndex: __t.u32(),
+});
+export type BlueprintExercise = __Infer<typeof BlueprintExercise>;
+
 export const Room = __t.object("Room", {
   roomId: __t.string(),
   roomToken: __t.string(),
@@ -21,4 +43,13 @@ export const Room = __t.object("Room", {
   lastSessionTimestamp: __t.string(),
 });
 export type Room = __Infer<typeof Room>;
+
+export const SessionHistory = __t.object("SessionHistory", {
+  logId: __t.string(),
+  roomId: __t.string(),
+  timestamp: __t.string(),
+  notes: __t.string(),
+  completedExercisesJson: __t.string(),
+});
+export type SessionHistory = __Infer<typeof SessionHistory>;
 

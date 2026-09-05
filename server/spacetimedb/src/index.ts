@@ -14,6 +14,40 @@ const spacetimedb = schema({
       lastSessionTimestamp: t.string(),
     }
   ),
+  session_history: table(
+    { public: true },
+    {
+      logId: t.string().primaryKey(),
+      roomId: t.string(),
+      timestamp: t.string(),
+      notes: t.string(),
+      completedExercisesJson: t.string(),
+    }
+  ),
+  blueprint: table(
+    { public: true },
+    {
+      blueprintId: t.string().primaryKey(),
+      roomId: t.string(),
+      name: t.string(),
+      targetGoal: t.string(),
+      isActiveDayPlan: t.bool(),
+    }
+  ),
+  blueprint_exercise: table(
+    { public: true },
+    {
+      id: t.string().primaryKey(),
+      blueprintId: t.string(),
+      exerciseName: t.string(),
+      warmupFor: t.string(), 
+      sets: t.u32(),
+      reps: t.u32(),
+      weight: t.string(),
+      isStaticHold: t.bool(),
+      orderIndex: t.u32(),
+    }
+  ),
 });
 
 export default spacetimedb;
@@ -70,8 +104,8 @@ export const approveClientEntry = spacetimedb.reducer(
 );
 
 export const endSession = spacetimedb.reducer(
-  { roomId: t.string(), notes: t.string(), timestamp: t.string() },
-  (ctx, { roomId, notes, timestamp }) => {
+  { roomId: t.string(), notes: t.string(), timestamp: t.string(), completedExercisesJson: t.string() },
+  (ctx, { roomId, notes, timestamp, completedExercisesJson }) => {
     for (const r of ctx.db.room.iter()) {
       if (r.roomId === roomId) {
         ctx.db.room.delete(r);
@@ -80,6 +114,14 @@ export const endSession = spacetimedb.reducer(
           clientStatus: 'SESSION_ENDED',
           lastSessionNotes: notes,
           lastSessionTimestamp: timestamp,
+        });
+        
+        ctx.db.session_history.insert({
+          logId: `${roomId}-${ctx.timestamp}`,
+          roomId: roomId,
+          timestamp: timestamp,
+          notes: notes,
+          completedExercisesJson: completedExercisesJson,
         });
       }
     }
@@ -98,6 +140,61 @@ export const resetRoom = spacetimedb.reducer(
           clientStatus: 'NONE',
         });
       }
+    }
+  }
+);
+
+export const saveBlueprint = spacetimedb.reducer(
+  { 
+    blueprintId: t.string(), 
+    roomId: t.string(), 
+    name: t.string(), 
+    targetGoal: t.string(), 
+    isActiveDayPlan: t.bool(),
+    exercisesJson: t.string(),
+  },
+  (ctx, { blueprintId, roomId, name, targetGoal, isActiveDayPlan, exercisesJson }) => {
+    // Delete existing blueprint if updating
+    for (const b of ctx.db.blueprint.iter()) {
+      if (b.blueprintId === blueprintId) {
+        ctx.db.blueprint.delete(b);
+      }
+    }
+    
+    // Delete old exercises
+    for (const e of ctx.db.blueprint_exercise.iter()) {
+      if (e.blueprintId === blueprintId) {
+        ctx.db.blueprint_exercise.delete(e);
+      }
+    }
+
+    // Insert blueprint
+    ctx.db.blueprint.insert({
+      blueprintId,
+      roomId,
+      name,
+      targetGoal,
+      isActiveDayPlan,
+    });
+
+    // Parse exercises and insert
+    try {
+      const exercises = JSON.parse(exercisesJson);
+      for (const ex of exercises) {
+        ctx.db.blueprint_exercise.insert({
+          id: ex.id || `${blueprintId}-${ex.orderIndex}`,
+          blueprintId,
+          exerciseName: ex.exerciseName || '',
+          warmupFor: ex.warmupFor || '',
+          sets: ex.sets || 0,
+          reps: ex.reps || 0,
+          weight: ex.weight || '',
+          isStaticHold: !!ex.isStaticHold,
+          orderIndex: ex.orderIndex || 0,
+        });
+      }
+    } catch (e) {
+      console.error("Failed to parse exercisesJson", e);
     }
   }
 );
