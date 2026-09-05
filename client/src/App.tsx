@@ -595,21 +595,6 @@ function ClientView({ isConnected, dbConn, rooms }: { isConnected: boolean, dbCo
         {/* Tab 1: Live Room Session */}
         {activeTab === 'session' && (
           <div className="flex flex-col gap-4">
-            {/* If previous session ended, display past log summary banner */}
-            {roomState.clientStatus === 'SESSION_ENDED' && (
-              <div className="bg-indigo-950/30 border border-indigo-500/30 p-4 rounded-xl text-xs space-y-2">
-                <p className="text-indigo-300 font-bold flex items-center gap-1.5">
-                  <CheckCircle className="w-4 h-4 text-emerald-400" />
-                  Previous Session Logged ({roomState.lastSessionTimestamp})
-                </p>
-                {roomState.lastSessionNotes && (
-                  <p className="text-slate-300 italic">"{roomState.lastSessionNotes}"</p>
-                )}
-                <p className="text-slate-400 text-[11px] pt-1 border-t border-slate-800">
-                  Ready for your next session? Enter your name below to request entry from {roomState.ptName}.
-                </p>
-              </div>
-            )}
 
             {/* Form to enter name & request entry (active when status is NONE, DENIED, or SESSION_ENDED) */}
             {(!roomState.clientStatus || roomState.clientStatus === 'NONE' || roomState.clientStatus === 'DENIED' || roomState.clientStatus === 'SESSION_ENDED') && (
@@ -728,8 +713,17 @@ function ClientView({ isConnected, dbConn, rooms }: { isConnected: boolean, dbCo
 
               {/* Clinician Feedback */}
               {roomState.lastSessionNotes && (
-                <div className="bg-indigo-950/40 p-4 rounded-xl border border-indigo-500/30">
-                  <span className="text-indigo-300 font-bold block mb-1">🏥 PT Clinician Notes:</span>
+                <div className="bg-indigo-950/40 p-4 rounded-xl border border-indigo-500/30 space-y-2">
+                  <div className="flex items-center justify-between border-b border-indigo-500/20 pb-2">
+                    <span className="text-indigo-300 font-bold flex items-center gap-1.5">
+                      <CheckCircle className="w-4 h-4 text-emerald-400" />
+                      Previous Session Logged
+                    </span>
+                    {roomState.lastSessionTimestamp && (
+                      <span className="text-indigo-400/80 font-mono text-[10px]">{roomState.lastSessionTimestamp}</span>
+                    )}
+                  </div>
+                  <span className="text-slate-400 font-bold block mb-1">🏥 PT Clinician Notes:</span>
                   <p className="text-slate-200 italic">"{roomState.lastSessionNotes}"</p>
                 </div>
               )}
