@@ -17,4 +17,6 @@ export default __t.row({
   expectedClientName: __t.string().name("expected_client_name"),
   submittedClientName: __t.string().name("submitted_client_name"),
   clientStatus: __t.string().name("client_status"),
+  lastSessionNotes: __t.string().name("last_session_notes"),
+  lastSessionTimestamp: __t.string().name("last_session_timestamp"),
 });

@@ -7,10 +7,12 @@ import { type Infer as __Infer } from "spacetimedb";
 
 // Import all reducer arg schemas
 import ApproveClientEntryReducer from "../approve_client_entry_reducer";
+import EndSessionReducer from "../end_session_reducer";
 import RequestRoomEntryReducer from "../request_room_entry_reducer";
 import ResetRoomReducer from "../reset_room_reducer";
 
 export type ApproveClientEntryParams = __Infer<typeof ApproveClientEntryReducer>;
+export type EndSessionParams = __Infer<typeof EndSessionReducer>;
 export type RequestRoomEntryParams = __Infer<typeof RequestRoomEntryReducer>;
 export type ResetRoomParams = __Infer<typeof ResetRoomReducer>;
 

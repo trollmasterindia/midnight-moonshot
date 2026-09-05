@@ -10,15 +10,8 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export const Room = __t.object("Room", {
+export default {
   roomId: __t.string(),
-  roomToken: __t.string(),
-  ptName: __t.string(),
-  expectedClientName: __t.string(),
-  submittedClientName: __t.string(),
-  clientStatus: __t.string(),
-  lastSessionNotes: __t.string(),
-  lastSessionTimestamp: __t.string(),
-});
-export type Room = __Infer<typeof Room>;
-
+  notes: __t.string(),
+  timestamp: __t.string(),
+};

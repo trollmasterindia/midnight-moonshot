@@ -9,7 +9,9 @@ const spacetimedb = schema({
       ptName: t.string(),
       expectedClientName: t.string(),
       submittedClientName: t.string(),
-      clientStatus: t.string(), // "NONE", "WAITING_APPROVAL", "CONNECTED", "DENIED"
+      clientStatus: t.string(), // "NONE", "WAITING_APPROVAL", "CONNECTED", "DENIED", "SESSION_ENDED"
+      lastSessionNotes: t.string(),
+      lastSessionTimestamp: t.string(),
     }
   ),
 });
@@ -29,6 +31,8 @@ export const init = spacetimedb.init(ctx => {
       expectedClientName: client,
       submittedClientName: '',
       clientStatus: 'NONE',
+      lastSessionNotes: '',
+      lastSessionTimestamp: '',
     });
   });
 });
@@ -65,6 +69,23 @@ export const approveClientEntry = spacetimedb.reducer(
   }
 );
 
+export const endSession = spacetimedb.reducer(
+  { roomId: t.string(), notes: t.string(), timestamp: t.string() },
+  (ctx, { roomId, notes, timestamp }) => {
+    for (const r of ctx.db.room.iter()) {
+      if (r.roomId === roomId) {
+        ctx.db.room.delete(r);
+        ctx.db.room.insert({
+          ...r,
+          clientStatus: 'SESSION_ENDED',
+          lastSessionNotes: notes,
+          lastSessionTimestamp: timestamp,
+        });
+      }
+    }
+  }
+);
+
 export const resetRoom = spacetimedb.reducer(
   { roomId: t.string() },
   (ctx, { roomId }) => {
@@ -80,3 +101,4 @@ export const resetRoom = spacetimedb.reducer(
     }
   }
 );
+

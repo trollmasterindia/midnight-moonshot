@@ -35,6 +35,7 @@ import {
 
 // Import all reducer arg schemas
 import ApproveClientEntryReducer from "./approve_client_entry_reducer";
+import EndSessionReducer from "./end_session_reducer";
 import RequestRoomEntryReducer from "./request_room_entry_reducer";
 import ResetRoomReducer from "./reset_room_reducer";
 
@@ -63,6 +64,7 @@ const tablesSchema = __schema({
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
   __reducerSchema("approve_client_entry", ApproveClientEntryReducer),
+  __reducerSchema("end_session", EndSessionReducer),
   __reducerSchema("request_room_entry", RequestRoomEntryReducer),
   __reducerSchema("reset_room", ResetRoomReducer),
 );
