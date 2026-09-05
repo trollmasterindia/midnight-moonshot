@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Routes, Route, useNavigate, useParams, Link } from 'react-router-dom';
 import { DbConnection } from './module_bindings';
 import { 
-  Activity, ShieldCheck, UserCheck, Smartphone, RefreshCw, 
+  Activity, ShieldCheck, UserCheck, Smartphone, 
   AlertCircle, CheckCircle2, Clock, Sparkles, QrCode, Send, UserX, Check, Users,
   LogOut, FileText, Calendar, ClipboardList, CheckCircle, Copy
 } from 'lucide-react';
@@ -77,15 +77,9 @@ function useSpaceTimeDB() {
 // -------------------------------------------------------------
 // PT Dashboard Component
 // -------------------------------------------------------------
-function PTDashboard({ dbConn, rooms }: { dbConn: DbConnection | null, rooms: RoomData[] }) {
+function PTDashboard({ rooms }: { rooms: RoomData[] }) {
   const navigate = useNavigate();
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
-
-  const handleStartNewSession = (roomId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!dbConn) return;
-    dbConn.reducers.resetRoom({ roomId });
-  };
 
   const handleCopyClientLink = (roomToken: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -177,16 +171,6 @@ function PTDashboard({ dbConn, rooms }: { dbConn: DbConnection | null, rooms: Ro
                     </>
                   )}
                 </button>
-
-                {room.clientStatus === 'SESSION_ENDED' && (
-                  <button
-                    onClick={(e) => handleStartNewSession(room.roomId, e)}
-                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 px-3 rounded-lg text-xs flex items-center justify-center space-x-1.5 transition-all shadow-md"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Start New Session</span>
-                  </button>
-                )}
               </div>
             </div>
           ))}
@@ -505,6 +489,7 @@ function PTRoomView({ dbConn, rooms }: { dbConn: DbConnection | null, rooms: Roo
 function ClientView({ isConnected, dbConn, rooms }: { isConnected: boolean, dbConn: DbConnection | null, rooms: RoomData[] }) {
   const { roomToken } = useParams();
   const [inputName, setInputName] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'session' | 'homework'>('session');
   
   const roomState = rooms.find(r => r.roomToken === roomToken);
 
@@ -533,99 +518,180 @@ function ClientView({ isConnected, dbConn, rooms }: { isConnected: boolean, dbCo
   return (
     <div className="max-w-md mx-auto w-full flex flex-col gap-6 p-6 mt-4">
       <div className="glass-panel p-6 rounded-3xl border border-slate-800 flex flex-col gap-6 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-          <div className="flex items-center space-x-2">
-            <Smartphone className="w-5 h-5 text-indigo-400" />
-            <h2 className="font-bold text-white text-base">PhysioSync Client</h2>
+        
+        {/* Header & Client Navigation Tabs */}
+        <div className="flex flex-col gap-3 border-b border-slate-800 pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Smartphone className="w-5 h-5 text-indigo-400" />
+              <h2 className="font-bold text-white text-base">PhysioSync Client</h2>
+            </div>
+            <span className="text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-0.5 rounded-full font-mono">
+              {roomState.roomId}
+            </span>
           </div>
-          <span className="text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-0.5 rounded-full font-mono">
-            {roomState.roomId}
-          </span>
+
+          {/* Client Navigation Tabs: Live Session vs My Homework */}
+          <div className="grid grid-cols-2 bg-slate-900 p-1 rounded-xl border border-slate-800 gap-1 mt-1">
+            <button
+              onClick={() => setActiveTab('session')}
+              className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
+                activeTab === 'session' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>Live Room</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('homework')}
+              className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
+                activeTab === 'homework' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <ClipboardList className="w-3.5 h-3.5" />
+              <span>My Homework</span>
+            </button>
+          </div>
         </div>
 
-        {/* State 1: Input Name Form */}
-        {(!roomState.clientStatus || roomState.clientStatus === 'NONE' || roomState.clientStatus === 'DENIED') && (
-          <form onSubmit={handleRequestEntry} className="flex flex-col gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                Enter Your Full Name
-              </label>
-              <input
-                type="text"
-                value={inputName}
-                onChange={(e) => setInputName(e.target.value)}
-                placeholder="e.g. Nipun"
-                required
-                className="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm outline-none transition-all"
-              />
-            </div>
-
-            {roomState.clientStatus === 'DENIED' && (
-              <p className="text-xs text-rose-400 bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20">
-                ⚠️ Name did not match expected client name. Please try again.
-              </p>
+        {/* Tab 1: Live Room Session */}
+        {activeTab === 'session' && (
+          <div className="flex flex-col gap-4">
+            {/* If previous session ended, display past log summary banner */}
+            {roomState.clientStatus === 'SESSION_ENDED' && (
+              <div className="bg-indigo-950/30 border border-indigo-500/30 p-4 rounded-xl text-xs space-y-2">
+                <p className="text-indigo-300 font-bold flex items-center gap-1.5">
+                  <CheckCircle className="w-4 h-4 text-emerald-400" />
+                  Previous Session Logged ({roomState.lastSessionTimestamp})
+                </p>
+                {roomState.lastSessionNotes && (
+                  <p className="text-slate-300 italic">"{roomState.lastSessionNotes}"</p>
+                )}
+                <p className="text-slate-400 text-[11px] pt-1 border-t border-slate-800">
+                  Ready for your next session? Enter your name below to request entry from {roomState.ptName}.
+                </p>
+              </div>
             )}
 
-            <button
-              type="submit"
-              disabled={!inputName.trim() || !isConnected}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center space-x-2 shadow-lg shadow-indigo-600/30 transition-all"
-            >
-              <Send className="w-4 h-4" />
-              <span>Join Room</span>
-            </button>
-          </form>
-        )}
+            {/* Form to enter name & request entry (active when status is NONE, DENIED, or SESSION_ENDED) */}
+            {(!roomState.clientStatus || roomState.clientStatus === 'NONE' || roomState.clientStatus === 'DENIED' || roomState.clientStatus === 'SESSION_ENDED') && (
+              <form onSubmit={handleRequestEntry} className="flex flex-col gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+                    Enter Your Full Name to Start Session
+                  </label>
+                  <input
+                    type="text"
+                    value={inputName}
+                    onChange={(e) => setInputName(e.target.value)}
+                    placeholder={`e.g. ${roomState.expectedClientName}`}
+                    required
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl px-4 py-3 text-white placeholder-slate-500 text-sm outline-none transition-all"
+                  />
+                </div>
 
-        {/* State 2: Waiting for PT Approval */}
-        {roomState.clientStatus === 'WAITING_APPROVAL' && (
-          <div className="bg-amber-950/30 border border-amber-500/40 p-6 rounded-2xl text-center flex flex-col items-center gap-4 animate-pulse-subtle">
-            <div className="bg-amber-500/20 p-4 rounded-full text-amber-400 border border-amber-500/30">
-              <Clock className="w-8 h-8 animate-spin" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-amber-300">Waiting for PT Approval</h3>
-              <p className="text-xs text-slate-300 mt-1">
-                {roomState.ptName} has been notified on their console. Entry will unlock automatically once approved.
-              </p>
-            </div>
+                {roomState.clientStatus === 'DENIED' && (
+                  <p className="text-xs text-rose-400 bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20">
+                    ⚠️ Name did not match expected client name ({roomState.expectedClientName}). Please try again.
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={!inputName.trim() || !isConnected}
+                  className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center space-x-2 shadow-lg shadow-indigo-600/30 transition-all"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>Request Entry for Session</span>
+                </button>
+              </form>
+            )}
+
+            {/* State 2: Waiting for PT Approval */}
+            {roomState.clientStatus === 'WAITING_APPROVAL' && (
+              <div className="bg-amber-950/30 border border-amber-500/40 p-6 rounded-2xl text-center flex flex-col items-center gap-4 animate-pulse-subtle">
+                <div className="bg-amber-500/20 p-4 rounded-full text-amber-400 border border-amber-500/30">
+                  <Clock className="w-8 h-8 animate-spin" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-amber-300">Waiting for PT Approval</h3>
+                  <p className="text-xs text-slate-300 mt-1">
+                    {roomState.ptName} has been notified on their console. Entry will unlock automatically once approved.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* State 3: Live Session Active */}
+            {roomState.clientStatus === 'CONNECTED' && (
+              <div className="bg-emerald-950/30 border border-emerald-500/40 p-6 rounded-2xl flex flex-col gap-4 text-center">
+                <div className="bg-emerald-500/20 p-4 rounded-full text-emerald-400 border border-emerald-500/30 mx-auto">
+                  <Sparkles className="w-8 h-8" />
+                </div>
+                <div>
+                  <span className="text-xs uppercase font-bold tracking-wider text-emerald-400">Access Granted</span>
+                  <h3 className="text-xl font-extrabold text-white mt-1">Live Session Active</h3>
+                  <p className="text-xs text-slate-300 mt-1">
+                    Connected in private room with {roomState.ptName}.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* State 3: Live Session Active */}
-        {roomState.clientStatus === 'CONNECTED' && (
-          <div className="bg-emerald-950/30 border border-emerald-500/40 p-6 rounded-2xl flex flex-col gap-4 text-center">
-            <div className="bg-emerald-500/20 p-4 rounded-full text-emerald-400 border border-emerald-500/30 mx-auto">
-              <Sparkles className="w-8 h-8" />
-            </div>
-            <div>
-              <span className="text-xs uppercase font-bold tracking-wider text-emerald-400">Access Granted</span>
-              <h3 className="text-xl font-extrabold text-white mt-1">Session Active</h3>
-              <p className="text-xs text-slate-300 mt-1">
-                Connected in private room with {roomState.ptName}.
-              </p>
-            </div>
-          </div>
-        )}
+        {/* Tab 2: My Homework (Home Rx) */}
+        {activeTab === 'homework' && (
+          <div className="flex flex-col gap-4 text-xs">
+            <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
+                <h3 className="font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 text-xs">
+                  <FileText className="w-4 h-4 text-indigo-400" />
+                  Prescribed Home Rehab Plan
+                </h3>
+                <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded font-mono">
+                  {roomState.expectedClientName}
+                </span>
+              </div>
 
-        {/* State 4: Session Ended Summary View */}
-        {roomState.clientStatus === 'SESSION_ENDED' && (
-          <div className="bg-indigo-950/30 border border-indigo-500/40 p-6 rounded-2xl flex flex-col gap-4 text-center">
-            <div className="bg-indigo-500/20 p-4 rounded-full text-indigo-400 border border-indigo-500/30 mx-auto">
-              <CheckCircle className="w-8 h-8 text-indigo-300" />
-            </div>
-            <div>
-              <span className="text-xs uppercase font-bold tracking-wider text-indigo-300">Session Completed</span>
-              <h3 className="text-xl font-extrabold text-white mt-1">Great Job, {roomState.submittedClientName || roomState.expectedClientName}!</h3>
-              <p className="text-xs text-slate-300 mt-2">
-                Logged: <span className="font-mono text-indigo-300">{roomState.lastSessionTimestamp}</span>
-              </p>
+              <div className="space-y-3 text-slate-300">
+                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
+                  <div className="flex justify-between font-bold text-white text-sm">
+                    <span>1. Bodyweight Squat Calibration</span>
+                    <span className="text-indigo-400 text-xs">3 sets x 10 reps</span>
+                  </div>
+                  <p className="text-slate-400 text-[11px]">
+                    • Maintain 3-point foot contact. Push knees outward over toes without caving in.
+                  </p>
+                </div>
+
+                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
+                  <div className="flex justify-between font-bold text-white text-sm">
+                    <span>2. Glute Activation Bridges</span>
+                    <span className="text-indigo-400 text-xs">2 sets x 12 reps</span>
+                  </div>
+                  <p className="text-slate-400 text-[11px]">
+                    • Drive through heels and squeeze glutes at peak hold for 2 seconds before lowering.
+                  </p>
+                </div>
+
+                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
+                  <div className="flex justify-between font-bold text-white text-sm">
+                    <span>3. Wall Ankle Dorsiflexion Drill</span>
+                    <span className="text-indigo-400 text-xs">2 sets x 10 reps</span>
+                  </div>
+                  <p className="text-slate-400 text-[11px]">
+                    • Keep heel firmly on ground while bending knee forward toward wall.
+                  </p>
+                </div>
+              </div>
             </div>
 
+            {/* Clinician Feedback */}
             {roomState.lastSessionNotes && (
-              <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-800 text-left text-xs">
-                <span className="text-indigo-400 font-bold block mb-1">📝 Clinician Feedback & Next Steps:</span>
-                <p className="text-slate-200 italic">{roomState.lastSessionNotes}</p>
+              <div className="bg-indigo-950/40 p-4 rounded-xl border border-indigo-500/30">
+                <span className="text-indigo-300 font-bold block mb-1">🏥 PT Clinician Notes:</span>
+                <p className="text-slate-200 italic">"{roomState.lastSessionNotes}"</p>
               </div>
             )}
           </div>
@@ -674,11 +740,11 @@ export function App() {
 
       {/* Routing Logic */}
       <Routes>
-        <Route path="/pt" element={<PTDashboard dbConn={dbConn} rooms={rooms} />} />
+        <Route path="/pt" element={<PTDashboard rooms={rooms} />} />
         <Route path="/pt/room/:roomId" element={<PTRoomView dbConn={dbConn} rooms={rooms} />} />
         <Route path="/client/:roomToken" element={<ClientView isConnected={isConnected} dbConn={dbConn} rooms={rooms} />} />
         {/* Default Redirect to PT dashboard */}
-        <Route path="*" element={<PTDashboard dbConn={dbConn} rooms={rooms} />} />
+        <Route path="*" element={<PTDashboard rooms={rooms} />} />
       </Routes>
     </div>
   );
