@@ -73,3 +73,28 @@
 - **WikiGem Engine Action:** Filters alternative exercises matching the exact target muscle profile:
   - *Squat Alternatives:* Leg Press / Goblet Squat / Bulgarian Split Squat.
   - *Deadlift Alternatives:* Romanian Deadlift / Glute Bridge / Cable Pull-Through.
+
+---
+
+## 3. Client Proactive Diagnostic Cues & Multimodal AI Integration
+
+### A. Proactive Post-Set Guided Cues (Active Surfacing)
+Because patients often don't know what issues to look for, the UI surfaces 1-tap guided prompts post-set:
+- **Cue 1 (Recruitment Check):** *"Did your glutes fire, or did your quads take over 100%?"* -> Tapping `[ Quads Only ]` triggers Case A (Glute Activation Drills).
+- **Cue 2 (Form Check):** *"Did your heels lift or knees drift inward?"* -> Tapping `[ Knees Inward ]` triggers Case B (Ankle/Hip Screening).
+- **Cue 3 (Discomfort Check):** *"Any lower back tightness?"* -> Tapping `[ Yes ]` triggers Case C (Primer Triad).
+
+### B. Client Top Issues Digest (Educational & 1-Tap Trigger Cards)
+For each active exercise, WikiGem provides a 3-item visual educational summary for the Client with 1-tap logging:
+- **Squat Top Issues:**
+  1. 🦵 **Knee Valgus:** Knees collapse inward on descent/ascent. (*1-Tap Flag to PT*).
+  2. 🦶 **Heel Lifting:** Heels rise off floor due to tight ankles. (*1-Tap Flag to PT*).
+  3. 🍑 **Butt Wink:** Tailbone tucks under at bottom. (*1-Tap Flag to PT*).
+
+### C. Next-Gen Scope: Gemini Multimodal Vision AI Pipeline
+- **Stream Ingestion:** HTML5 Canvas extracts 1 frame per second from client's webcam feed.
+- **Biomechanical Vision Prompt:** Sends image frame to Gemini 2.0 Flash Vision API:
+  - *"Analyze squat form. Detect if knees cave inward (knee valgus) or lower back rounds (butt wink)."*
+- **Real-Time Alert Dispatch:**
+  - If Gemini detects form fault -> dispatches `submit_movement_log(logged_by="GeminiVisionAI", issue_category="KNEE_VALGUS_DETECTED")`.
+  - Instantly renders **"AI Detected Potential Issue"** badge on both PT and Client views!

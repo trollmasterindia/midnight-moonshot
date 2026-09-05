@@ -100,8 +100,16 @@ cd midnight-moonshot
 ### Demo Script (Hackathon Demo Checklist)
 1. **PT Session Start & History View:** PT opens app, selects patient profile *"Alex"*, and reviews pre-loaded clinical history (past lumbar sprain, dormant glute notes) in the PT sidebar. PT clicks **"Start Room"**.
 2. **Personalized Link & PT Approval:** Client opens their secret link (`physiosync.app/room/alex-squat-8f92a`), enters name *"Alex"*, and enters Waiting Room. PT gets entry request modal -> Clicks **"Approve Entry"** -> Client screen unlocks into live room!
-3. **Exercise Assignment:** PT selects **Squat** -> Client screen shows live Squat Demo GIF.
-4. **Anatomical Overlay:** PT clicks **"Highlight Muscles"** -> Client body map animates Quads & Glutes.
-5. **Pain & Fault Logging:** Client logs *"Lower Back Pain"* + *"Glutes Not Felt"*.
+3. **Exercise Assignment & Top Issues Digest:** PT selects **Squat** -> Client screen shows live Squat Demo GIF and Top 3 Form Pitfalls educational card.
+4. **Bi-Directional Anatomical Overlay:** Either Client or PT taps **"Highlight Target Muscles"** -> Body map animates Quads & Glutes.
+5. **Proactive Guided Cueing & Issue Surfacing:** System prompts Client post-set: *"Where did you feel the burn?"* -> Client taps `[ Quads Only ]` + `[ Lower Back Tightness ]` (surfacing issues even if client didn't know how to articulate them).
 6. **WikiGem Prescription:** PT dashboard gets alert + WikiGem suggestions (*3-Point Foot Contact Cue*, *Glute Bridge Primer*).
 7. **Approve & Push:** PT clicks **"Approve & Push"** -> Client screen immediately updates with visual fix card!
+
+---
+
+### 🔮 Next-Gen Scope: Gemini Multimodal Vision AI Pipeline
+*(If core development completes ahead of deadline)*
+- **Live Client Camera Sampling:** WebRTC HTML5 Canvas extracts 1 FPS webcam frames during exercise execution.
+- **Biomechanical Pose Diagnostics:** Streamed to Gemini 2.0 Flash Vision API to detect form faults in real-time (knee collapse, lumbar rounding).
+- **Auto-Surfaced Alert Badges:** Automatically surfaces **"AI Detected Potential Issue"** badges to both PT and Client!

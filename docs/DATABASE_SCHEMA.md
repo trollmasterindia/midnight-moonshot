@@ -29,13 +29,14 @@ pub struct MovementLog {
     #[primarykey]
     pub log_id: u32,
     pub room_id: String,
-    pub logged_by: String,     // "PT" or "Client"
+    pub logged_by: String,         // "PT", "Client", or "GeminiVisionAI"
     pub felt_glutes: bool,
     pub felt_quads: bool,
-    pub pain_location_x: f32,  // Normalized 3D/2D coordinates (0.0 to 1.0)
+    pub pain_location_x: f32,      // Normalized 3D/2D coordinates (0.0 to 1.0)
     pub pain_location_y: f32,
-    pub pain_type: String,     // "Sharp", "Dull", "Tightness", "Pinching"
-    pub issue_category: String,// "GLUTE_OFF", "DEPTH_FAIL", "BACK_PAIN"
+    pub pain_type: String,         // "Sharp", "Dull", "Tightness", "Pinching"
+    pub issue_category: String,    // "GLUTE_OFF", "DEPTH_FAIL", "BACK_PAIN"
+    pub ai_detected_issue: Option<String>, // Optional: "KNEE_VALGUS_DETECTED", "LUMBAR_ROUNDING"
 }
 
 // 3. WikiGem Prescriptions & Interventions
@@ -76,7 +77,7 @@ pub struct ClientRecord {
    - Updates `active_exercise` for all room subscribers.
 
 4. `toggle_muscle_overlay(ctx: ReducerContext, room_id: String, enabled: bool)`
-   - Toggles 3D/SVG muscle highlighting overlay on client UI.
+   - Toggles 3D/SVG muscle highlighting overlay on client & PT UI (callable bi-directionally by Client or PT).
 
 5. `submit_movement_log(ctx: ReducerContext, room_id: String, felt_glutes: bool, felt_quads: bool, pain_x: f32, pain_y: f32, pain_type: String, issue_category: String)`
    - Inserts movement log and automatically triggers WikiGem suggestion logic.

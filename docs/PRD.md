@@ -52,23 +52,35 @@ Instead of verbally explaining form tweaks over video calls, the PT shares a pri
   - Exercise Name & Target Objectives.
   - Embedded looping exercise demo (GIF / YouTube Short).
 
-### Feature 3: PT-Triggered 3D Anatomical Map Overlay
-- PT clicks **"Show Target Muscles"**.
+### Feature 3: Bi-Directional 3D Anatomical Map Overlay (PT & Client Triggered)
+- Either the **Client** or **PT** can click **"Show Target Muscles"** at any time.
 - Client UI animates an interactive 3D Body Representation (or 2D SVG canvas fallback):
   - **Prime Movers highlighted:** Quadriceps, Gluteus Maximus.
   - **Stabilizers highlighted:** Core / Transverse Abdominis, Erector Spinae.
+- Client can explore target muscle groups independently for self-education.
 
-### Feature 4: Interactive Muscle & Pain Logging
-Either the **Client** or **PT** can log execution feelings during/after a set:
-1. **Engaged Muscles Checkbox:** Select which muscles were actually felt (e.g., *"Felt Quads, Did NOT feel Glutes"*).
-2. **Pain / Discomfort Pointing:** Click directly on the 3D Body Representation to drop a marker on the pain location.
-3. **Pain Type & Context:** Dropdown selecting pain type (*Sharp, Dull Ache, Tightness, Pinching*) + text notes.
+### Feature 4: Proactive Guided Diagnostic Cues & Muscle/Pain Logging
+*Patients often don't know what issues to look for. PhysioSync proactively surfaces diagnostic cues to guide them:*
+1. **Post-Set Proactive Cue Modal:** After a set, an interactive 5-second check-in appears on the Client UI:
+   - *"Where did you feel the main effort?"* `[ Quads ]` `[ Glutes ]` `[ Lower Back ]`
+   - *"Did you feel any pinching, tightness, or dull ache?"*
+2. **1-Tap Issue Flagging from Educational Digest:** Tapping any item in the Top Issues card automatically logs the fault.
+3. **Interactive 3D Pain Marker:** Client or PT drops a marker directly on the 3D Body Representation for pinpoint precision.
 
 ### Feature 5: WikiGem Diagnostic & Recommendation Push
 - Movement log triggers **WikiGem Rule Engine**.
 - System computes root causes & corrective interventions.
 - PT reviews suggestion on Supervisor View and clicks **"Approve & Push"**.
 - Client UI displays visual fix card immediately.
+
+### Feature 6: Client Educational "Top Common Faults" & Active Surfacing Digest
+- Visual widget on the Client UI showing the **Top 2-3 Form Pitfalls** for the active exercise.
+- Doubles as 1-tap feedback triggers so clients can easily flag what they experienced.
+- *For Squats:*
+  1. 🦵 *"Knee Valgus (Knees caving inward)"* -> `[ Tap if felt ]`
+  2. 🦶 *"Heel Lifting (Ankle dorsiflexion restriction)"* -> `[ Tap if felt ]`
+  3. 🍑 *"Butt Wink / Lumbar Rounding at Depth"* -> `[ Tap if felt ]`
+- Educates the patient while proactively surfacing form faults to the PT without clinical jargon overload.
 
 ---
 
@@ -77,3 +89,16 @@ Either the **Client** or **PT** can log execution feelings during/after a set:
 - **Latency:** State updates synced via SpaceTimeDB WebSockets in under 100ms.
 - **Client Onboarding:** < 5 seconds from link click to active room state.
 - **Browser Compatibility:** Works across modern desktop and mobile browsers (Chrome, Safari, Firefox).
+
+---
+
+## 5. Next Version / Stretch Scope: Multimodal AI Video Stream Diagnostics
+
+*(If core development is completed ahead of deadline)*
+
+- **Live Client Camera Sampling:** WebRTC / HTML5 Canvas samples keyframes from the client's live webcam stream during exercise execution.
+- **Multimodal AI Analysis (Gemini 2.0 / Vision AI):** Image frames + movement prompt streamed to Gemini Vision API to evaluate real-time movement biomechanics.
+- **Automated Fault Surface:**
+  - AI identifies form deviations (e.g., knee collapse, spinal flex, depth shortfall).
+  - Automatically surfaces **"AI Detected Potential Issue"** alert badges to the PT Supervisor view and Client UI.
+  - PT retains 1-click approval to validate AI finding and push WikiGem corrective drills.
