@@ -48,6 +48,16 @@ const spacetimedb = schema({
       orderIndex: t.u32(),
     }
   ),
+  exercise_dictionary: table(
+    { public: true },
+    {
+      exerciseId: t.string().primaryKey(),
+      name: t.string(),
+      category: t.string(), // e.g. Rehab, Hypertrophy, Power, Mobility, Core
+      targetMuscle: t.string(),
+      description: t.string(),
+    }
+  ),
 });
 
 export default spacetimedb;
@@ -69,7 +79,120 @@ export const init = spacetimedb.init(ctx => {
       lastSessionTimestamp: '',
     });
   });
+
+  // Seed top 30 exercises
+  const exercises = [
+    // Rehab & Mobility
+    { id: 'ex-1', name: 'Bodyweight Squat', cat: 'Rehab', mus: 'Quads/Glutes', desc: 'Basic functional movement' },
+    { id: 'ex-2', name: 'Glute Bridge', cat: 'Rehab', mus: 'Glutes', desc: 'Core and glute activation' },
+    { id: 'ex-3', name: 'Clamshells', cat: 'Rehab', mus: 'Hip Abductors', desc: 'Strengthens gluteus medius' },
+    { id: 'ex-4', name: 'Straight Leg Raise', cat: 'Rehab', mus: 'Quads', desc: 'Knee rehabilitation' },
+    { id: 'ex-5', name: 'Calf Raises', cat: 'Rehab', mus: 'Calves', desc: 'Ankle stability' },
+    { id: 'ex-6', name: 'Bird Dog', cat: 'Core', mus: 'Core/Back', desc: 'Spinal stability' },
+    { id: 'ex-7', name: 'Dead Bug', cat: 'Core', mus: 'Core', desc: 'Anterior core control' },
+    { id: 'ex-8', name: 'Side Plank', cat: 'Core', mus: 'Obliques', desc: 'Lateral core stability' },
+    { id: 'ex-9', name: 'Ankle Dorsiflexion stretch', cat: 'Mobility', mus: 'Ankle', desc: 'Improves squat depth' },
+    { id: 'ex-10', name: '90/90 Hip Stretch', cat: 'Mobility', mus: 'Hips', desc: 'Hip internal/external rotation' },
+
+    // Hypertrophy
+    { id: 'ex-11', name: 'Barbell Back Squat', cat: 'Hypertrophy', mus: 'Quads/Glutes', desc: 'Primary lower body builder' },
+    { id: 'ex-12', name: 'Romanian Deadlift (RDL)', cat: 'Hypertrophy', mus: 'Hamstrings', desc: 'Posterior chain builder' },
+    { id: 'ex-13', name: 'Bulgarian Split Squat', cat: 'Hypertrophy', mus: 'Quads/Glutes', desc: 'Unilateral leg strength' },
+    { id: 'ex-14', name: 'Leg Press', cat: 'Hypertrophy', mus: 'Quads', desc: 'Machine leg builder' },
+    { id: 'ex-15', name: 'Leg Extension', cat: 'Hypertrophy', mus: 'Quads', desc: 'Isolated quad growth' },
+    { id: 'ex-16', name: 'Lying Leg Curl', cat: 'Hypertrophy', mus: 'Hamstrings', desc: 'Isolated hamstring growth' },
+    { id: 'ex-17', name: 'Bench Press', cat: 'Hypertrophy', mus: 'Chest', desc: 'Upper body pushing' },
+    { id: 'ex-18', name: 'Overhead Press', cat: 'Hypertrophy', mus: 'Shoulders', desc: 'Vertical pushing strength' },
+    { id: 'ex-19', name: 'Pull-up', cat: 'Hypertrophy', mus: 'Lats/Back', desc: 'Vertical pulling' },
+    { id: 'ex-20', name: 'Barbell Row', cat: 'Hypertrophy', mus: 'Back', desc: 'Horizontal pulling' },
+    
+    // Sports Performance & Power
+    { id: 'ex-21', name: 'Box Jump', cat: 'Power', mus: 'Full Lower', desc: 'Explosive vertical power' },
+    { id: 'ex-22', name: 'Power Clean', cat: 'Power', mus: 'Full Body', desc: 'Olympic weightlifting movement' },
+    { id: 'ex-23', name: 'Kettlebell Swing', cat: 'Power', mus: 'Posterior Chain', desc: 'Explosive hip hinge' },
+    { id: 'ex-24', name: 'Medicine Ball Slam', cat: 'Power', mus: 'Core/Lats', desc: 'Explosive upper body' },
+    { id: 'ex-25', name: 'Sprint', cat: 'Performance', mus: 'Full Body', desc: 'Max velocity mechanics' },
+    { id: 'ex-26', name: 'Lateral Bound (Skater)', cat: 'Power', mus: 'Glutes', desc: 'Lateral explosive power' },
+    { id: 'ex-27', name: 'Depth Jump', cat: 'Power', mus: 'Lower Body', desc: 'Advanced plyometric impact absorption' },
+    { id: 'ex-28', name: 'Agility Ladder Drills', cat: 'Performance', mus: 'Calves/Ankles', desc: 'Footwork and coordination' },
+    { id: 'ex-29', name: 'Push Press', cat: 'Power', mus: 'Shoulders/Triceps', desc: 'Explosive overhead push' },
+    { id: 'ex-30', name: 'Trap Bar Deadlift', cat: 'Performance', mus: 'Full Lower', desc: 'Maximal strength and power' }
+  ];
+
+  for (const ex of exercises) {
+    ctx.db.exercise_dictionary.insert({
+      exerciseId: ex.id,
+      name: ex.name,
+      category: ex.cat,
+      targetMuscle: ex.mus,
+      description: ex.desc
+    });
+  }
 });
+
+export const seedExercises = spacetimedb.reducer(
+  {},
+  (ctx) => {
+    // Seed top 30 exercises
+    const exercises = [
+      // Rehab & Mobility
+      { id: 'ex-1', name: 'Bodyweight Squat', cat: 'Rehab', mus: 'Quads/Glutes', desc: 'Basic functional movement' },
+      { id: 'ex-2', name: 'Glute Bridge', cat: 'Rehab', mus: 'Glutes', desc: 'Core and glute activation' },
+      { id: 'ex-3', name: 'Clamshells', cat: 'Rehab', mus: 'Hip Abductors', desc: 'Strengthens gluteus medius' },
+      { id: 'ex-4', name: 'Straight Leg Raise', cat: 'Rehab', mus: 'Quads', desc: 'Knee rehabilitation' },
+      { id: 'ex-5', name: 'Calf Raises', cat: 'Rehab', mus: 'Calves', desc: 'Ankle stability' },
+      { id: 'ex-6', name: 'Bird Dog', cat: 'Core', mus: 'Core/Back', desc: 'Spinal stability' },
+      { id: 'ex-7', name: 'Dead Bug', cat: 'Core', mus: 'Core', desc: 'Anterior core control' },
+      { id: 'ex-8', name: 'Side Plank', cat: 'Core', mus: 'Obliques', desc: 'Lateral core stability' },
+      { id: 'ex-9', name: 'Ankle Dorsiflexion stretch', cat: 'Mobility', mus: 'Ankle', desc: 'Improves squat depth' },
+      { id: 'ex-10', name: '90/90 Hip Stretch', cat: 'Mobility', mus: 'Hips', desc: 'Hip internal/external rotation' },
+
+      // Hypertrophy
+      { id: 'ex-11', name: 'Barbell Back Squat', cat: 'Hypertrophy', mus: 'Quads/Glutes', desc: 'Primary lower body builder' },
+      { id: 'ex-12', name: 'Romanian Deadlift (RDL)', cat: 'Hypertrophy', mus: 'Hamstrings', desc: 'Posterior chain builder' },
+      { id: 'ex-13', name: 'Bulgarian Split Squat', cat: 'Hypertrophy', mus: 'Quads/Glutes', desc: 'Unilateral leg strength' },
+      { id: 'ex-14', name: 'Leg Press', cat: 'Hypertrophy', mus: 'Quads', desc: 'Machine leg builder' },
+      { id: 'ex-15', name: 'Leg Extension', cat: 'Hypertrophy', mus: 'Quads', desc: 'Isolated quad growth' },
+      { id: 'ex-16', name: 'Lying Leg Curl', cat: 'Hypertrophy', mus: 'Hamstrings', desc: 'Isolated hamstring growth' },
+      { id: 'ex-17', name: 'Bench Press', cat: 'Hypertrophy', mus: 'Chest', desc: 'Upper body pushing' },
+      { id: 'ex-18', name: 'Overhead Press', cat: 'Hypertrophy', mus: 'Shoulders', desc: 'Vertical pushing strength' },
+      { id: 'ex-19', name: 'Pull-up', cat: 'Hypertrophy', mus: 'Lats/Back', desc: 'Vertical pulling' },
+      { id: 'ex-20', name: 'Barbell Row', cat: 'Hypertrophy', mus: 'Back', desc: 'Horizontal pulling' },
+      
+      // Sports Performance & Power
+      { id: 'ex-21', name: 'Box Jump', cat: 'Power', mus: 'Full Lower', desc: 'Explosive vertical power' },
+      { id: 'ex-22', name: 'Power Clean', cat: 'Power', mus: 'Full Body', desc: 'Olympic weightlifting movement' },
+      { id: 'ex-23', name: 'Kettlebell Swing', cat: 'Power', mus: 'Posterior Chain', desc: 'Explosive hip hinge' },
+      { id: 'ex-24', name: 'Medicine Ball Slam', cat: 'Power', mus: 'Core/Lats', desc: 'Explosive upper body' },
+      { id: 'ex-25', name: 'Sprint', cat: 'Performance', mus: 'Full Body', desc: 'Max velocity mechanics' },
+      { id: 'ex-26', name: 'Lateral Bound (Skater)', cat: 'Power', mus: 'Glutes', desc: 'Lateral explosive power' },
+      { id: 'ex-27', name: 'Depth Jump', cat: 'Power', mus: 'Lower Body', desc: 'Advanced plyometric impact absorption' },
+      { id: 'ex-28', name: 'Agility Ladder Drills', cat: 'Performance', mus: 'Calves/Ankles', desc: 'Footwork and coordination' },
+      { id: 'ex-29', name: 'Push Press', cat: 'Power', mus: 'Shoulders/Triceps', desc: 'Explosive overhead push' },
+      { id: 'ex-30', name: 'Trap Bar Deadlift', cat: 'Performance', mus: 'Full Lower', desc: 'Maximal strength and power' }
+    ];
+
+    for (const ex of exercises) {
+      // Avoid inserting duplicates if called multiple times
+      let exists = false;
+      for (const e of ctx.db.exercise_dictionary.iter()) {
+        if (e.exerciseId === ex.id) {
+          exists = true;
+          break;
+        }
+      }
+      if (!exists) {
+        ctx.db.exercise_dictionary.insert({
+          exerciseId: ex.id,
+          name: ex.name,
+          category: ex.cat,
+          targetMuscle: ex.mus,
+          description: ex.desc
+        });
+      }
+    }
+  }
+);
 
 export const requestRoomEntry = spacetimedb.reducer(
   { roomToken: t.string(), clientName: t.string() },

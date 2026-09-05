@@ -32,6 +32,15 @@ export const BlueprintExercise = __t.object("BlueprintExercise", {
 });
 export type BlueprintExercise = __Infer<typeof BlueprintExercise>;
 
+export const ExerciseDictionary = __t.object("ExerciseDictionary", {
+  exerciseId: __t.string(),
+  name: __t.string(),
+  category: __t.string(),
+  targetMuscle: __t.string(),
+  description: __t.string(),
+});
+export type ExerciseDictionary = __Infer<typeof ExerciseDictionary>;
+
 export const Room = __t.object("Room", {
   roomId: __t.string(),
   roomToken: __t.string(),

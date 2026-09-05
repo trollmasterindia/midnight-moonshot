@@ -39,12 +39,14 @@ import EndSessionReducer from "./end_session_reducer";
 import RequestRoomEntryReducer from "./request_room_entry_reducer";
 import ResetRoomReducer from "./reset_room_reducer";
 import SaveBlueprintReducer from "./save_blueprint_reducer";
+import SeedExercisesReducer from "./seed_exercises_reducer";
 
 // Import all procedure arg schemas
 
 // Import all table schema definitions
 import BlueprintRow from "./blueprint_table";
 import BlueprintExerciseRow from "./blueprint_exercise_table";
+import ExerciseDictionaryRow from "./exercise_dictionary_table";
 import RoomRow from "./room_table";
 import SessionHistoryRow from "./session_history_table";
 
@@ -74,6 +76,17 @@ const tablesSchema = __schema({
       { name: 'blueprint_exercise_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, BlueprintExerciseRow),
+  exerciseDictionary: __table({
+    name: 'exercise_dictionary',
+    indexes: [
+      { accessor: 'exerciseId', name: 'exercise_dictionary_exercise_id_idx_btree', algorithm: 'btree', columns: [
+        'exerciseId',
+      ] },
+    ],
+    constraints: [
+      { name: 'exercise_dictionary_exercise_id_key', constraint: 'unique', columns: ['exerciseId'] },
+    ],
+  }, ExerciseDictionaryRow),
   room: __table({
     name: 'room',
     indexes: [
@@ -105,6 +118,7 @@ const reducersSchema = __reducers(
   __reducerSchema("request_room_entry", RequestRoomEntryReducer),
   __reducerSchema("reset_room", ResetRoomReducer),
   __reducerSchema("save_blueprint", SaveBlueprintReducer),
+  __reducerSchema("seed_exercises", SeedExercisesReducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
@@ -115,6 +129,8 @@ type __SchemaWithTableAccessorAliases = Omit<typeof tablesSchema.schemaType, "ta
   tables: typeof tablesSchema.schemaType.tables & {
     /** @deprecated Use `blueprintExercise` instead. This alias will be removed in the next major version. */
     readonly "blueprint_exercise": Omit<typeof tablesSchema.schemaType.tables["blueprintExercise"], "accessorName"> & { readonly accessorName: "blueprint_exercise" };
+    /** @deprecated Use `exerciseDictionary` instead. This alias will be removed in the next major version. */
+    readonly "exercise_dictionary": Omit<typeof tablesSchema.schemaType.tables["exerciseDictionary"], "accessorName"> & { readonly accessorName: "exercise_dictionary" };
     /** @deprecated Use `sessionHistory` instead. This alias will be removed in the next major version. */
     readonly "session_history": Omit<typeof tablesSchema.schemaType.tables["sessionHistory"], "accessorName"> & { readonly accessorName: "session_history" };
   };
@@ -136,6 +152,7 @@ const REMOTE_MODULE = {
 
 const tableAccessorAliases = {
   "blueprint_exercise": "blueprintExercise",
+  "exercise_dictionary": "exerciseDictionary",
   "session_history": "sessionHistory",
 } as const;
 
@@ -159,6 +176,8 @@ type __DbViewBase = __DbConnectionImpl<typeof REMOTE_MODULE>["db"];
 export type DbView = __DbViewBase & {
   /** @deprecated Use `blueprintExercise` instead. This alias will be removed in the next major version. */
   readonly "blueprint_exercise": __DbViewBase["blueprintExercise"];
+  /** @deprecated Use `exerciseDictionary` instead. This alias will be removed in the next major version. */
+  readonly "exercise_dictionary": __DbViewBase["exerciseDictionary"];
   /** @deprecated Use `sessionHistory` instead. This alias will be removed in the next major version. */
   readonly "session_history": __DbViewBase["sessionHistory"];
 };
@@ -167,6 +186,8 @@ type __TablesBase = __QueryBuilder<typeof tablesSchema.schemaType>;
 export type Tables = __TablesBase & {
   /** @deprecated Use `blueprintExercise` instead. This alias will be removed in the next major version. */
   readonly "blueprint_exercise": __TablesBase["blueprintExercise"];
+  /** @deprecated Use `exerciseDictionary` instead. This alias will be removed in the next major version. */
+  readonly "exercise_dictionary": __TablesBase["exerciseDictionary"];
   /** @deprecated Use `sessionHistory` instead. This alias will be removed in the next major version. */
   readonly "session_history": __TablesBase["sessionHistory"];
 };
